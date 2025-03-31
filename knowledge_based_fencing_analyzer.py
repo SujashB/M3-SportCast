@@ -8,15 +8,25 @@ import spacy
 import networkx as nx
 from torch import nn
 import torch.nn.functional as F
-from transformers import VideoMAEImageProcessor
+from transformers import VideoMAEImageProcessor, VideoMAEForVideoClassification
 from tqdm import tqdm
+from dotenv import load_dotenv
+
+load_dotenv()
+
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 
 class FencingKnowledgeGraph:
-    def __init__(self, uri="bolt://localhost:7687", user="neo4j", password="your_password"):
+    def __init__(self, uri="bolt://localhost:7687", user="neo4j", password=NEO4J_PASSWORD):
         self.driver = GraphDatabase.driver(uri, auth=(user, password))
         self.nlp = spacy.load("en_core_web_sm")
         self.technique_embeddings = {}
         self.movement_patterns = {}
+        self.technique_classes = [
+            'attack', 'defense', 'parry', 'riposte', 'lunge',
+            'advance', 'retreat', 'feint'
+        ]
+        self.technique_patterns = {}
         
     def extract_technique_patterns(self):
         """Extract technique patterns from the knowledge graph"""
@@ -41,6 +51,16 @@ class FencingKnowledgeGraph:
                     self.movement_patterns[technique] = self.extract_movement_pattern(
                         technique, movements
                     )
+        self.technique_patterns = {
+            'attack': ['forward motion', 'blade extension'],
+            'defense': ['backward motion', 'blade block'],
+            'parry': ['blade deflection', 'lateral motion'],
+            'riposte': ['parry', 'counter attack'],
+            'lunge': ['forward step', 'blade extension'],
+            'advance': ['forward step'],
+            'retreat': ['backward step'],
+            'feint': ['fake attack', 'deception']
+        }
     
     def is_fencing_technique(self, text):
         """Check if the text describes a fencing technique"""
@@ -85,162 +105,209 @@ class FencingKnowledgeGraph:
                         pattern['blade_position'].append(token.text)
         
         return pattern
+    
+    def get_technique_classes(self):
+        return self.technique_classes
+    
+    def get_technique_pattern(self, technique):
+        return self.technique_patterns.get(technique, [])
 
 class StrokeDetector(nn.Module):
-    def __init__(self, knowledge_graph):
+    def __init__(self):
         super().__init__()
-        self.knowledge_graph = knowledge_graph
-        
-        # Convolutional layers for motion detection
-        self.motion_conv = nn.Sequential(
-            nn.Conv3d(3, 64, kernel_size=(3, 3, 3), padding=(1, 1, 1)),
-            nn.ReLU(),
-            nn.BatchNorm3d(64),
-            nn.Conv3d(64, 128, kernel_size=(3, 3, 3), padding=(1, 1, 1)),
-            nn.ReLU(),
-            nn.BatchNorm3d(128)
+        # Load pre-trained ResNet3D backbone
+        self.backbone = VideoMAEForVideoClassification.from_pretrained(
+            "MCG-NJU/videomae-base-finetuned-kinetics"
         )
         
-        # Spatial feature extraction
-        self.spatial_features = nn.Sequential(
-            nn.Conv2d(128, 256, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.BatchNorm2d(256)
-        )
+        # Freeze backbone parameters
+        for param in self.backbone.parameters():
+            param.requires_grad = False
         
-        # Knowledge integration
-        embedding_dim = 300  # spaCy embedding dimension
-        self.knowledge_projection = nn.Linear(embedding_dim, 256)
-        
-        # Stroke detection head
-        self.stroke_detector = nn.Sequential(
-            nn.Linear(256, 128),
+        # Replace classification head
+        hidden_size = self.backbone.config.hidden_size
+        self.classifier = nn.Sequential(
+            nn.Linear(hidden_size, 256),
             nn.ReLU(),
-            nn.Linear(128, 1),
+            nn.Dropout(0.5),
+            nn.Linear(256, 64),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(64, 1),
             nn.Sigmoid()
         )
+        
+        # Initialize classifier weights
+        self._initialize_weights()
+    
+    def _initialize_weights(self):
+        """Initialize the weights using Xavier initialization"""
+        for m in self.classifier.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                nn.init.zeros_(m.bias)
     
     def forward(self, x):
-        # Input shape: [batch, time, channels, height, width]
-        batch_size = x.size(0)
+        # x shape: [batch, time, height, width, channels]
+        # Get backbone features
+        outputs = self.backbone(x, output_hidden_states=True)
+        features = outputs.hidden_states[-1][:, 0]  # Use [CLS] token features
         
-        # Motion feature extraction
-        motion_features = self.motion_conv(x.transpose(1, 2))  # [batch, 128, time, height, width]
-        
-        # Get features for each timestep
-        timesteps = motion_features.size(2)
-        stroke_probs = []
-        
-        for t in range(timesteps):
-            # Spatial features for current timestep
-            spatial_feat = self.spatial_features(motion_features[:, :, t])  # [batch, 256, height, width]
-            
-            # Global average pooling
-            spatial_feat = spatial_feat.mean(dim=[2, 3])  # [batch, 256]
-            
-            # Detect stroke at current timestep
-            stroke_prob = self.stroke_detector(spatial_feat)
-            stroke_probs.append(stroke_prob)
-        
-        return torch.stack(stroke_probs, dim=1)  # [batch, time, 1]
+        # Classification
+        logits = self.classifier(features)
+        return logits
 
 class TechniqueClassifier(nn.Module):
     def __init__(self, knowledge_graph):
         super().__init__()
         self.knowledge_graph = knowledge_graph
         
-        # Create technique embeddings matrix
-        self.num_techniques = len(knowledge_graph.technique_embeddings)
-        self.technique_list = list(knowledge_graph.technique_embeddings.keys())
-        
-        technique_embeds = []
-        for technique in self.technique_list:
-            technique_embeds.append(knowledge_graph.technique_embeddings[technique])
-        self.technique_embeds = torch.stack(technique_embeds)  # [num_techniques, embed_dim]
-        
-        # Feature extraction for stroke segments
-        self.feature_extractor = nn.Sequential(
-            nn.Conv3d(3, 64, kernel_size=(3, 3, 3), padding=(1, 1, 1)),
-            nn.ReLU(),
-            nn.BatchNorm3d(64),
-            nn.Conv3d(64, 128, kernel_size=(3, 3, 3), padding=(1, 1, 1)),
-            nn.ReLU(),
-            nn.BatchNorm3d(128),
-            nn.AdaptiveAvgPool3d((1, 1, 1))
+        # Load pre-trained backbone
+        self.backbone = VideoMAEForVideoClassification.from_pretrained(
+            "MCG-NJU/videomae-base-finetuned-kinetics"
         )
         
-        # Project video features to embedding space
-        self.projection = nn.Linear(128, self.technique_embeds.size(1))
+        # Freeze backbone parameters
+        for param in self.backbone.parameters():
+            param.requires_grad = False
+        
+        # Knowledge-aware attention
+        hidden_size = self.backbone.config.hidden_size
+        self.attention = nn.MultiheadAttention(embed_dim=hidden_size, num_heads=8)
+        
+        # Technique classification head
+        self.classifier = nn.Sequential(
+            nn.Linear(hidden_size, 256),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(256, len(self.knowledge_graph.get_technique_classes()))
+        )
+        
+        # Initialize new parameters
+        self._initialize_weights()
     
-    def forward(self, x, stroke_segments):
-        """
-        x: Video tensor [batch, time, channels, height, width]
-        stroke_segments: List of (start, end) indices for detected strokes
-        """
-        batch_size = x.size(0)
-        classifications = []
+    def _initialize_weights(self):
+        """Initialize the weights using Xavier initialization"""
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                nn.init.zeros_(m.bias)
+    
+    def forward(self, x):
+        # Get backbone features
+        outputs = self.backbone(x, output_hidden_states=True)
+        features = outputs.hidden_states[-1]  # [batch, seq_len, hidden_size]
         
-        for b in range(batch_size):
-            segment_preds = []
-            for start, end in stroke_segments[b]:
-                # Extract features for the stroke segment
-                segment = x[b:b+1, start:end+1]  # [1, segment_length, C, H, W]
-                features = self.feature_extractor(segment.transpose(1, 2))  # [1, 128, 1, 1, 1]
-                features = features.squeeze()  # [128]
-                
-                # Project to embedding space
-                projected = self.projection(features)  # [embed_dim]
-                
-                # Compare with technique embeddings
-                similarities = F.cosine_similarity(
-                    projected.unsqueeze(0),
-                    self.technique_embeds,
-                    dim=1
-                )
-                
-                # Get top techniques
-                segment_preds.append(similarities)
-            
-            if segment_preds:
-                # Aggregate predictions for all segments
-                segment_preds = torch.stack(segment_preds)
-                classifications.append(segment_preds.mean(dim=0))
-            else:
-                # No strokes detected
-                classifications.append(torch.zeros(self.num_techniques))
+        # Apply knowledge-aware attention
+        attended_features, _ = self.attention(
+            features.transpose(0, 1),
+            features.transpose(0, 1),
+            features.transpose(0, 1)
+        )
         
-        return torch.stack(classifications)  # [batch, num_techniques]
+        # Global pooling
+        features = attended_features.transpose(0, 1).mean(dim=1)  # [batch, hidden_size]
+        
+        # Classify technique
+        logits = self.classifier(features)
+        return logits
 
 class FencingAnalyzer:
-    def __init__(self):
+    def __init__(self, video_path=None):
+        # Initialize Neo4j connection
+        load_dotenv()
+        uri = "bolt://localhost:7687"
+        user = "neo4j"
+        password = os.getenv("NEO4J_PASSWORD")
+        
+        print("Extracting technique patterns from knowledge graph...")
+        self.driver = GraphDatabase.driver(uri, auth=(user, password))
+        
         # Initialize knowledge graph
         self.knowledge_graph = FencingKnowledgeGraph()
-        print("Extracting technique patterns from knowledge graph...")
         self.knowledge_graph.extract_technique_patterns()
         
+        # Set device
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
         # Initialize models
-        self.stroke_detector = StrokeDetector(self.knowledge_graph)
-        self.technique_classifier = TechniqueClassifier(self.knowledge_graph)
+        self.stroke_detector = StrokeDetector().to(self.device)
+        self.technique_classifier = TechniqueClassifier(self.knowledge_graph).to(self.device)
         
         # Initialize video processor
         self.processor = VideoMAEImageProcessor()
     
-    def analyze_video(self, video_path, confidence_threshold=0.5):
-        """Analyze a fencing video using the knowledge graph"""
-        # Load video frames
-        frames = self.load_video(video_path)
-        frame_tensor = torch.FloatTensor(frames).unsqueeze(0)  # Add batch dimension
+    def analyze_video(self, video_path):
+        """Analyze a fencing video and detect techniques"""
+        print(f"Analyzing video: {video_path}")
         
+        # Load video
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            raise ValueError("Could not open video file")
+        
+        # Get video properties
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        
+        print(f"Video properties: {frame_count} frames, {fps} fps, {width}x{height}")
+        
+        # Extract frames
+        frames = []
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+            # Convert to RGB
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frames.append(frame)
+        cap.release()
+        
+        print(f"Extracted {len(frames)} frames")
+        
+        # Process frames using VideoMAE processor
+        inputs = self.processor(
+            frames,
+            return_tensors="pt",
+            sampling_rate=4  # Sample every 4th frame
+        )
+        
+        # Move to device
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        
+        print("Detecting strokes...")
         # Detect strokes
-        stroke_probs = self.stroke_detector(frame_tensor)
-        stroke_segments = self.get_stroke_segments(stroke_probs[0], confidence_threshold)
+        with torch.no_grad():
+            stroke_probs = self.stroke_detector(inputs["pixel_values"])
         
-        # Classify detected strokes
-        if stroke_segments:
-            technique_probs = self.technique_classifier(frame_tensor, [stroke_segments])
-            predictions = self.get_predictions(technique_probs[0])
-        else:
-            predictions = []
+        # Get stroke segments
+        stroke_segments = self.get_stroke_segments(stroke_probs, fps)
+        
+        # Classify techniques for each segment
+        predictions = []
+        print("Classifying techniques...")
+        for i, segment in enumerate(stroke_segments):
+            start_frame, end_frame = segment
+            # Get frames for the segment
+            segment_frames = frames[start_frame:end_frame]
+            # Process frames
+            segment_inputs = self.processor(
+                segment_frames,
+                return_tensors="pt",
+                sampling_rate=4
+            )
+            # Move to device
+            segment_inputs = {k: v.to(self.device) for k, v in segment_inputs.items()}
+            # Get predictions
+            with torch.no_grad():
+                technique_probs = self.technique_classifier(segment_inputs["pixel_values"])
+            predictions.append({
+                'segment': segment,
+                'technique': technique_probs
+            })
+            print(f"Segment {i+1}: frames {start_frame}-{end_frame}")
         
         return predictions, stroke_segments
     
@@ -261,24 +328,40 @@ class FencingAnalyzer:
         cap.release()
         return np.array(frames) / 255.0
     
-    def get_stroke_segments(self, stroke_probs, threshold):
-        """Get start and end frames of detected strokes"""
-        stroke_probs = stroke_probs.squeeze().cpu().numpy()
+    def get_stroke_segments(self, stroke_probs, fps):
+        """Convert stroke probabilities to time segments"""
+        print("Converting stroke probabilities to segments...")
+        
+        # Convert to numpy array
+        stroke_probs = stroke_probs.cpu().detach().numpy()
+        
+        # Print probability statistics
+        print(f"Probability range: {stroke_probs.min():.3f} - {stroke_probs.max():.3f}")
+        print(f"Mean probability: {stroke_probs.mean():.3f}")
+        
+        # Lower threshold for stroke detection
+        threshold = 0.3
+        
+        # Find segments where probability exceeds threshold
         segments = []
-        in_stroke = False
-        start_frame = 0
+        start_frame = None
         
-        for i, prob in enumerate(stroke_probs):
-            if prob > threshold and not in_stroke:
-                in_stroke = True
+        for i, prob in enumerate(stroke_probs[0]):
+            if prob > threshold and start_frame is None:
                 start_frame = i
-            elif prob <= threshold and in_stroke:
-                in_stroke = False
-                segments.append((start_frame, i-1))
+            elif prob <= threshold and start_frame is not None:
+                # Only add segments longer than 0.1 seconds
+                if (i - start_frame) / fps >= 0.1:
+                    segments.append((start_frame, i))
+                    print(f"Found segment: frames {start_frame}-{i} (probability: {prob:.3f})")
+                start_frame = None
         
-        if in_stroke:
-            segments.append((start_frame, len(stroke_probs)-1))
+        # Handle case where stroke continues until end
+        if start_frame is not None and (len(stroke_probs[0]) - start_frame) / fps >= 0.1:
+            segments.append((start_frame, len(stroke_probs[0])))
+            print(f"Found final segment: frames {start_frame}-{len(stroke_probs[0])}")
         
+        print(f"Found {len(segments)} stroke segments")
         return segments
     
     def get_predictions(self, technique_probs):
