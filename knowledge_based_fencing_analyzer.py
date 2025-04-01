@@ -340,7 +340,7 @@ class FencingAnalyzer:
         print(f"Mean probability: {stroke_probs.mean():.3f}")
         
         # Lower threshold for stroke detection
-        threshold = 0.3
+        threshold = 0.1  # Reduced from 0.3 to be more sensitive
         
         # Find segments where probability exceeds threshold
         segments = []
@@ -361,6 +361,11 @@ class FencingAnalyzer:
             segments.append((start_frame, len(stroke_probs[0])))
             print(f"Found final segment: frames {start_frame}-{len(stroke_probs[0])}")
         
+        # If no segments found, use the entire video
+        if not segments:
+            print("No segments found with current threshold, using entire video")
+            segments.append((0, len(stroke_probs[0])))
+        
         print(f"Found {len(segments)} stroke segments")
         return segments
     
@@ -376,17 +381,68 @@ class FencingAnalyzer:
         return sorted(predictions, key=lambda x: x[1], reverse=True)
 
 if __name__ == "__main__":
-    # Example usage
-    analyzer = FencingAnalyzer()
-    video_path = "fencing_demo_video.mp4"
-    
-    print(f"Analyzing video: {video_path}")
-    predictions, stroke_segments = analyzer.analyze_video(video_path)
-    
-    print("\nDetected strokes:")
-    for start, end in stroke_segments:
-        print(f"Stroke from frame {start} to {end}")
-    
-    print("\nTop predicted techniques:")
-    for technique, prob in predictions[:5]:
-        print(f"{technique}: {prob:.4f}") 
+    try:
+        print("Starting fencing video analysis...")
+        # Example usage
+        analyzer = FencingAnalyzer()
+        video_path = "fencing_demo_video.mp4"
+        
+        print(f"Checking if video exists: {os.path.exists(video_path)}")
+        if not os.path.exists(video_path):
+            print(f"ERROR: Video file {video_path} not found!")
+            exit(1)
+        
+        print(f"Analyzing video: {video_path}")
+        
+        # Skip the complex analysis for now and just do a basic classification
+        print("Performing basic video classification...")
+        
+        # Load video frames
+        frames = []
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            print(f"ERROR: Could not open video file {video_path}")
+            exit(1)
+            
+        print(f"Video properties: fps={cap.get(cv2.CAP_PROP_FPS)}, frames={int(cap.get(cv2.CAP_PROP_FRAME_COUNT))}")
+        
+        # Extract frames
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+            # Convert to RGB
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frames.append(frame)
+        cap.release()
+        
+        print(f"Extracted {len(frames)} frames")
+        
+        # Use VideoMAE processor
+        print("Processing frames with VideoMAE processor...")
+        inputs = analyzer.processor(
+            frames,
+            return_tensors="pt",
+            sampling_rate=4
+        )
+        
+        # Move to device
+        inputs = {k: v.to(analyzer.device) for k, v in inputs.items()}
+        
+        # Make predictions
+        print("Making predictions...")
+        with torch.no_grad():
+            technique_logits = analyzer.technique_classifier(inputs["pixel_values"])
+        
+        # Convert logits to probabilities
+        technique_probs = F.softmax(technique_logits, dim=1)[0]
+        
+        print("\nTop predicted techniques for the video:")
+        technique_classes = analyzer.knowledge_graph.get_technique_classes()
+        for i, prob in enumerate(technique_probs):
+            print(f"{technique_classes[i]}: {prob.item():.4f}")
+            
+    except Exception as e:
+        import traceback
+        print(f"ERROR: {e}")
+        traceback.print_exc()
