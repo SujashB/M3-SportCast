@@ -12,6 +12,16 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
 
+# Import pose estimation helper if available
+try:
+    from pose_estimation_helper import process_video_with_pose, extract_pose_descriptions, enhance_videomae_with_pose
+    POSE_HELPER_AVAILABLE = True
+    print("Pose estimation helper is available for enhanced fencing analysis")
+except ImportError:
+    POSE_HELPER_AVAILABLE = False
+    print("Pose estimation helper not found. Installing required dependencies:")
+    print("pip install mediapipe matplotlib")
+
 # Safe import for VideoMAE
 try:
     from transformers import VideoMAEImageProcessor, VideoMAEForVideoClassification
@@ -194,6 +204,64 @@ class FencingAnalyzer:
         
         print(f"Video properties: {frame_count} frames, {fps} fps, {width}x{height}")
         
+        # First, perform pose estimation if available
+        pose_probs = None
+        pose_descriptions = None
+        technique_counts = {}
+        detected_techniques = set()
+        
+        # Try to perform pose estimation
+        try:
+            if POSE_HELPER_AVAILABLE:
+                try:
+                    print("Performing enhanced analysis with pose estimation first...")
+                    # Process video with pose estimation
+                    print("Starting pose analysis of video...")
+                    frame_analyses, _ = process_video_with_pose(video_path, save_frames=False)
+                    pose_descriptions = extract_pose_descriptions(frame_analyses)
+                    
+                    # Extract the main fencing techniques detected by pose analysis
+                    for desc in pose_descriptions:
+                        desc_lower = desc.lower()
+                        if "lunge" in desc_lower:
+                            detected_techniques.add("lunge")
+                        if "advance" in desc_lower:
+                            detected_techniques.add("advance")
+                        if "attack" in desc_lower:
+                            detected_techniques.add("attack")
+                        if "retreat" in desc_lower:
+                            detected_techniques.add("retreat")
+                        if "parry" in desc_lower:
+                            detected_techniques.add("parry")
+                    
+                    # Count occurrences of fencing techniques in descriptions
+                    technique_counts = {
+                        'attack': 0, 'defense': 0, 'parry': 0, 'riposte': 0, 
+                        'lunge': 0, 'advance': 0, 'retreat': 0, 'feint': 0
+                    }
+                    
+                    for desc in pose_descriptions:
+                        desc_lower = desc.lower()
+                        for technique in technique_counts.keys():
+                            if technique in desc_lower:
+                                technique_counts[technique] += 1
+                    
+                    # Print the techniques detected by pose analysis
+                    if detected_techniques:
+                        print(f"Primary techniques detected by pose analysis: {', '.join(detected_techniques)}")
+                        for technique, count in technique_counts.items():
+                            if count > 0:
+                                print(f"  - {technique}: {count} occurrences")
+                    
+                except Exception as e:
+                    print(f"Error performing pose analysis: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+                    print("Continuing with basic VideoMAE analysis only")
+        except Exception as e:
+            print(f"Import error with pose estimation: {str(e)}")
+            print("Continuing without pose estimation")
+        
         # Extract frames
         frames = []
         while cap.isOpened():
@@ -207,11 +275,101 @@ class FencingAnalyzer:
         
         print(f"Extracted {len(frames)} frames")
         
-        # Process video based on model type
-        if VIDEOMAE_AVAILABLE:
-            final_scores = self._analyze_with_videomae(frames)
-        else:
-            final_scores = self._analyze_with_simplecnn(frames)
+        # Process video with VideoMAE, informed by pose analysis if available
+        videomae_probs = None
+        try:
+            if VIDEOMAE_AVAILABLE:
+                # Use pose information to guide VideoMAE processing if available
+                if pose_descriptions:
+                    print("Using pose information to guide VideoMAE analysis...")
+                    videomae_probs = self._analyze_with_videomae_and_pose(frames, pose_descriptions, detected_techniques)
+                else:
+                    videomae_probs = self._analyze_with_videomae(frames)
+            else:
+                videomae_probs = self._analyze_with_simplecnn(frames)
+        except Exception as e:
+            print(f"Error during video classification: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            # Fall back to simple CNN
+            try:
+                print("Falling back to simple CNN classification...")
+                videomae_probs = self._analyze_with_simplecnn(frames)
+            except Exception as e2:
+                print(f"Error during simple CNN classification: {str(e2)}")
+                videomae_probs = None
+        
+        if videomae_probs is None:
+            print("WARNING: Classification failed. Returning uniform probabilities.")
+            # Return uniform probabilities as fallback
+            techniques = self.knowledge_graph.get_technique_classes()
+            videomae_probs = np.ones(len(techniques)) / len(techniques)
+        
+        # Compute pose-based probabilities if pose analysis was performed
+        if technique_counts:
+            try:
+                # Normalize counts to get probabilities
+                total = sum(technique_counts.values()) + 1e-6  # Avoid division by zero
+                pose_probs = {k: v/total for k, v in technique_counts.items()}
+                
+                print("\nProbabilities based on pose analysis:")
+                techniques = self.knowledge_graph.get_technique_classes()
+                for technique in techniques:
+                    if technique in pose_probs:
+                        print(f"  {technique}: {pose_probs.get(technique, 0.0):.4f}")
+            except Exception as e:
+                print(f"Error computing pose probabilities: {str(e)}")
+                pose_probs = None
+        
+        # Now combine the results, using knowledge graph to refine
+        final_scores = videomae_probs
+        if pose_probs:
+            try:
+                print("\nRefining results using knowledge graph...")
+                
+                # Get the technique patterns from the knowledge graph
+                technique_patterns = {}
+                for technique in self.knowledge_graph.get_technique_classes():
+                    technique_patterns[technique] = self.knowledge_graph.technique_patterns.get(technique, [])
+                
+                # Determine confidence scores from knowledge graph
+                knowledge_confidence = self._evaluate_consistency_with_knowledge_graph(
+                    videomae_probs, 
+                    pose_probs, 
+                    technique_patterns, 
+                    detected_techniques
+                )
+                
+                # Compute final scores with knowledge graph weighting
+                techniques = self.knowledge_graph.get_technique_classes()
+                final_scores = np.zeros(len(techniques))
+                
+                for i, technique in enumerate(techniques):
+                    # Get VideoMAE probability
+                    videomae_prob = videomae_probs[i]
+                    # Get pose probability
+                    pose_prob = pose_probs.get(technique, 0.0)
+                    # Get knowledge graph confidence
+                    kg_confidence = knowledge_confidence.get(technique, 0.5)
+                    
+                    # Weighted combination based on knowledge graph confidence
+                    # Higher confidence in pose estimation gets more weight for pose predictions
+                    if technique in detected_techniques:
+                        final_scores[i] = 0.3 * videomae_prob + 0.7 * pose_prob
+                    else:
+                        final_scores[i] = 0.7 * videomae_prob + 0.3 * pose_prob
+                
+                # Re-normalize
+                final_scores = final_scores / np.sum(final_scores)
+                
+                # Print final knowledge graph confidence
+                print("\nKnowledge graph confidence scores:")
+                for technique, conf in knowledge_confidence.items():
+                    print(f"  {technique}: {conf:.2f}")
+                
+            except Exception as e:
+                print(f"Error refining results with knowledge graph: {str(e)}")
+                final_scores = videomae_probs
         
         techniques = self.knowledge_graph.get_technique_classes()
         return final_scores, techniques
@@ -303,12 +461,118 @@ class FencingAnalyzer:
         
         return final_scores
 
+    def _analyze_with_videomae_and_pose(self, frames, pose_descriptions, detected_techniques):
+        """
+        Analyze video with VideoMAE model, guided by pose information
+        """
+        try:
+            print("Processing frames with VideoMAE (guided by pose)...")
+            
+            # Uniform sampling to get num_frames
+            frame_indices = np.linspace(0, len(frames) - 1, self.num_frames, dtype=int)
+            sampled_frames = [frames[i] for i in frame_indices]
+            
+            # Convert to PIL for processor
+            pil_frames = [Image.fromarray(frame) for frame in sampled_frames]
+            
+            # Process frames
+            inputs = self.processor(
+                images=pil_frames,
+                return_tensors="pt"
+            )
+            
+            # Move to device
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            
+            # Get predictions
+            print("Running inference with VideoMAE...")
+            with torch.no_grad():
+                outputs = self.model(**inputs)
+                logits = outputs.logits
+                
+            # Get initial probabilities
+            probs = F.softmax(logits, dim=1).cpu().numpy()[0]
+            
+            # Adjust based on detected techniques from pose
+            if detected_techniques:
+                print("Adjusting VideoMAE predictions based on pose-detected techniques...")
+                techniques = self.knowledge_graph.get_technique_classes()
+                adjusted_probs = probs.copy()
+                
+                # Boost probabilities for detected techniques
+                for i, technique in enumerate(techniques):
+                    if technique in detected_techniques:
+                        # Boost probability
+                        adjusted_probs[i] *= 1.2
+                
+                # Re-normalize
+                adjusted_probs = adjusted_probs / np.sum(adjusted_probs)
+                return adjusted_probs
+            
+            return probs
+            
+        except Exception as e:
+            print(f"Error during VideoMAE analysis with pose guidance: {str(e)}")
+            print("Falling back to standard VideoMAE analysis")
+            return self._analyze_with_videomae(frames)
+
+    def _evaluate_consistency_with_knowledge_graph(self, videomae_probs, pose_probs, technique_patterns, detected_techniques):
+        """
+        Evaluate consistency between VideoMAE predictions, pose predictions, and knowledge graph
+        Returns confidence scores for each technique
+        """
+        techniques = self.knowledge_graph.get_technique_classes()
+        confidence = {}
+        
+        # Compare top VideoMAE predictions with detected pose techniques
+        videomae_rankings = np.argsort(-videomae_probs)
+        videomae_top_techniques = [techniques[i] for i in videomae_rankings[:3]]
+        
+        # Calculate confidence based on agreement between different sources
+        for technique in techniques:
+            # Base confidence
+            conf = 0.5
+            
+            # If technique is in both top VideoMAE predictions and detected by pose
+            if technique in videomae_top_techniques and technique in detected_techniques:
+                conf += 0.3
+            
+            # If technique is only in one of them, smaller boost
+            elif technique in videomae_top_techniques or technique in detected_techniques:
+                conf += 0.1
+                
+            # Check if the technique patterns from knowledge graph are present in pose descriptions
+            pattern_words = ' '.join(technique_patterns.get(technique, []))
+            pattern_match_score = 0.0
+            
+            if pattern_words:
+                # Check if pattern words are in pose descriptions
+                for word in pattern_words.split():
+                    for desc in detected_techniques:
+                        if word.lower() in desc.lower():
+                            pattern_match_score += 0.1
+                            break
+                
+                conf += min(0.2, pattern_match_score)  # Cap at 0.2
+            
+            confidence[technique] = min(1.0, conf)  # Cap at 1.0
+        
+        return confidence
+
 if __name__ == "__main__":
     try:
         print("Starting fencing video analysis...")
+        # Get video filename from command line argument
+        import sys
+        if len(sys.argv) > 1:
+            video_path = sys.argv[1]
+        else:
+            video_path = "fencing_demo_video.mp4"  # Default
+            
+        print(f"Using video: {video_path}")
+        
         # Initialize analyzer
         analyzer = FencingAnalyzer()
-        video_path = "fencing_demo_video.mp4"
         
         print(f"Checking if video exists: {os.path.exists(video_path)}")
         if not os.path.exists(video_path):
@@ -316,16 +580,24 @@ if __name__ == "__main__":
             exit(1)
         
         # Analyze video
+        print("\n=== Analyzing Fencing Video ===")
         scores, techniques = analyzer.analyze_video(video_path)
         
         # Print results
-        print("\nFencing analysis results:")
+        print("\n=== Fencing Analysis Results ===")
+        print("Technique scores:")
         for i, technique in enumerate(techniques):
-            print(f"{technique}: {scores[i]:.4f}")
+            if scores is not None:
+                print(f"{technique}: {scores[i]:.4f}")
+            else:
+                print(f"{technique}: N/A (analysis failed)")
         
         # Print top predicted technique
-        top_idx = np.argmax(scores)
-        print(f"\nTop predicted technique: {techniques[top_idx]} ({scores[top_idx]:.4f})")
+        if scores is not None:
+            top_idx = np.argmax(scores)
+            print(f"\nTop predicted technique: {techniques[top_idx]} ({scores[top_idx]:.4f})")
+        else:
+            print("\nNo technique predicted (analysis failed)")
         
         # Create visualization
         try:
@@ -333,12 +605,12 @@ if __name__ == "__main__":
             plt.bar(techniques, scores)
             plt.xlabel('Technique')
             plt.ylabel('Score')
-            plt.title('Fencing Technique Analysis')
+            plt.title(f'Fencing Technique Analysis - {os.path.basename(video_path)}')
             plt.xticks(rotation=45)
             plt.tight_layout()
             
             # Save visualization
-            output_file = "fencing_technique_analysis.png"
+            output_file = f"fencing_analysis_{os.path.splitext(os.path.basename(video_path))[0]}.png"
             plt.savefig(output_file)
             print(f"\nVisualization saved to {output_file}")
             
@@ -368,13 +640,24 @@ if __name__ == "__main__":
                         plt.axis('off')
                         plt.title(f"Frame {i+1}")
                     
-                    plt.suptitle(f"Top prediction: {techniques[top_idx]} ({scores[top_idx]:.4f})")
+                    plt.suptitle(f"Video: {os.path.basename(video_path)}\nTop prediction: {techniques[top_idx]} ({scores[top_idx]:.4f})")
                     plt.tight_layout()
                     
                     # Save visualization
-                    output_file_frames = "fencing_frames.png"
+                    output_file_frames = f"frames_{os.path.splitext(os.path.basename(video_path))[0]}.png"
                     plt.savefig(output_file_frames)
                     print(f"Frame visualization saved to {output_file_frames}")
+                    
+                    # If pose analysis is available, run it on the video to create a visualization
+                    if POSE_HELPER_AVAILABLE:
+                        try:
+                            print("Creating pose analysis video...")
+                            pose_output = f"pose_analysis_{os.path.splitext(os.path.basename(video_path))[0]}.mp4"
+                            process_video_with_pose(video_path, pose_output, save_frames=True)
+                            print(f"Pose analysis video saved to {pose_output}")
+                        except Exception as e:
+                            print(f"Error creating pose analysis video: {str(e)}")
+                    
         except Exception as e:
             print(f"Could not create visualization: {str(e)}")
             
