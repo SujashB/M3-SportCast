@@ -1,83 +1,92 @@
-# M3-SportCast Advanced Fencing Analysis
+# M3-SportCast: Fencing Analytics
 
-This project combines computer vision, deep learning, and knowledge graph technologies to create a comprehensive fencing analysis system. It can classify fencing techniques, analyze movement sequences, track fencers, detect hits, and provide rich visualizations.
+A computer vision system for analyzing fencing movements and techniques using pose estimation and tracking.
 
-## Components
+## Features
 
-### 1. Core Video Analysis
-- **VideoMAE Classification**: Identifies fencing techniques using a video transformer model
-- **Pose Estimation**: Analyzes fencer body positions using MediaPipe
-- **Integrated Analysis**: Combines both approaches for accurate technique identification
+- Detect and track fencers in videos
+- Analyze pose and movement patterns
+- Identify fencing techniques and movements
+- Generate visualizations and reports
+- Support for multiple fencers in the same frame
 
-### 2. Sequence Analysis
-- **LSTM Model**: Deep learning model for temporal sequence understanding
-- **Sequence Extraction**: Identifies common sequences of techniques
-- **Pattern Recognition**: Detects signature patterns for individual fencers
+## Installation
 
-### 3. Knowledge Graph and Logical Rules
-- **Neo4j Database**: Stores structured fencing knowledge
-- **Logical Inference**: Applies first-order logic to refine classifications
-- **Knowledge Integration**: Enhances analysis with expert fencing knowledge
+1. Clone the repository:
+```bash
+git clone https://github.com/SujashB/M3-SportCast.git
+cd M3-SportCast
+```
 
-### 4. Fencer Segmentation and Tracking
-- **SAMURAI Model**: Advanced segmentation for precise fencer isolation (optional)
-- **OpenCV Tracking**: Follows fencers throughout the video
-- **Hit Detection**: Identifies potential hit moments based on proximity
+2. Create a virtual environment and activate it:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows, use: venv\Scripts\activate
+```
 
-### 5. Comprehensive Visualization
-- **Technique Distribution**: Pie charts and bar graphs of techniques
-- **Timeline Analysis**: Temporal visualization of technique sequences
-- **Transition Matrices**: Shows flows between techniques
-- **Movement Heatmaps**: Visualizes fencer positioning patterns
-- **Interactive Reports**: HTML reports with integrated visualizations
-
-## Setup
-
-1. Install the required dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
-
-2. Configure Neo4j (optional for knowledge graph features):
-   - Create a `.env` file with your Neo4j password:
-     ```
-     NEO4J_PASSWORD=your_password
-     ```
-   - Make sure Neo4j is running on localhost:7687
-   - Run `create_fencing_db.py` to populate the database with fencing knowledge
-
-3. For segmentation with the SAMURAI model (optional):
-   - Download the SAM model checkpoint from [the SAM repository](https://github.com/facebookresearch/segment-anything)
-   - Save it to a location accessible to the script
+3. Install the required dependencies:
+```bash
+pip install -r requirements.txt
+```
 
 ## Usage
 
-### Basic Analysis
+### Basic Usage
+
+Run the fencing analyzer on a video file:
 
 ```bash
-python advanced_fencing_analyzer.py path_to_video.mp4
+python advanced_fencing_analyzer.py path/to/your/video.mp4
 ```
 
-### Advanced Options
+This will process the video and generate visualization results in the `results` directory.
+
+### Manual Fencer Selection
+
+To first see the detected fencers in the first frame:
 
 ```bash
-python advanced_fencing_analyzer.py path_to_video.mp4 \
-  --output_dir results_folder \
-  --sam_checkpoint path/to/sam_model.pth \
-  --max_frames 500 \
-  --no_viz  # Disable visualizations
-  --no_seg  # Disable segmentation video output
+python advanced_fencing_analyzer.py path/to/your/video.mp4 --first_only
 ```
+
+Then select specific fencers to analyze (using their IDs from the first frame):
+
+```bash
+python advanced_fencing_analyzer.py path/to/your/video.mp4 --manual_select 0,1
+```
+
+### Additional Options
+
+- `--output_dir`: Specify a custom output directory (default: "results")
+- `--max_frames`: Limit the number of frames to process
+- `--no_viz`: Disable visualization outputs
+- `--first_only`: Only show the first frame with detected fencers and exit
 
 ## Output
 
-The system generates:
+The analyzer generates the following files:
 
-1. **Analysis JSON**: Comprehensive analysis data in JSON format
-2. **Visualizations**: Multiple visualization types (pie charts, timelines, heatmaps, etc.)
-3. **HTML Report**: Interactive report summarizing all findings
-4. **Segmentation Video**: Video showing tracked fencers (optional)
-5. **Sequence Model**: Trained model for sequence prediction
+- JSON analysis data with pose information and technique detection
+- Visualization images (pie charts, bar charts, timelines)
+- Summary visualizations for each detected fencer
+- HTML report with all analysis results
+- Video with pose visualization and bounding boxes
+
+## Examples
+
+```bash
+# Analyze only the first 100 frames
+python advanced_fencing_analyzer.py fencing_video.mp4 --max_frames 100
+
+# Save results to a custom directory
+python advanced_fencing_analyzer.py fencing_video.mp4 --output_dir my_results
+
+# First check which fencers are detected
+python advanced_fencing_analyzer.py fencing_video.mp4 --first_only
+
+# Then analyze specific fencers
+python advanced_fencing_analyzer.py fencing_video.mp4 --manual_select 0,1
+```
 
 ## Implementation
 
