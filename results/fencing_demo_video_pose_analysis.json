@@ -1,0 +1,1818 @@
+{
+  "video_path": "fencing_demo_video.mp4",
+  "pose_descriptions": [
+    "Fencer is arm bent, right leg deeply bent, torso leaning forward significantly.",
+    "Fencer is arm bent, right leg slightly bent, left leg slightly bent, torso leaning forward significantly.",
+    "Fencer is arm partially extended, torso leaning forward significantly.",
+    "Fencer is arm partially extended, right leg slightly bent, left leg slightly bent, torso leaning forward significantly.",
+    "Fencer is arm bent, right leg slightly bent, torso leaning forward significantly.",
+    "Fencer is arm bent, torso leaning forward significantly.",
+    "Fencer is arm partially extended, right leg slightly bent, torso leaning forward significantly.",
+    "Fencer is arm bent, right leg slightly bent, torso leaning forward significantly.",
+    "Fencer is arm partially extended, right leg slightly bent, torso leaning forward significantly.",
+    "Fencer is arm partially extended, torso leaning forward significantly.",
+    "Fencer is arm partially extended, right leg slightly bent, torso leaning forward significantly.",
+    "Fencer is arm partially extended, right leg slightly bent, left leg slightly bent, torso leaning forward significantly.",
+    "Fencer is arm bent, right leg slightly bent, left leg slightly bent, torso leaning forward significantly.",
+    "Fencer is arm partially extended, right leg deeply bent, torso leaning forward significantly.",
+    "Fencer is arm fully extended forward, torso leaning forward significantly.",
+    "Fencer is arm partially extended, torso leaning forward significantly."
+  ],
+  "technique_counts": {
+    "attack": 0,
+    "defense": 0,
+    "parry": 0,
+    "riposte": 0,
+    "lunge": 0,
+    "advance": 0,
+    "retreat": 0,
+    "feint": 0,
+    "movement": 63
+  },
+  "fencer_technique_counts": {
+    "2": {
+      "attack": 0,
+      "defense": 0,
+      "parry": 0,
+      "riposte": 0,
+      "lunge": 0,
+      "advance": 0,
+      "retreat": 0,
+      "feint": 0,
+      "movement": 6
+    },
+    "1": {
+      "attack": 0,
+      "defense": 0,
+      "parry": 0,
+      "riposte": 0,
+      "lunge": 0,
+      "advance": 0,
+      "retreat": 0,
+      "feint": 0,
+      "movement": 57
+    }
+  },
+  "timeline_data": [
+    [
+      0,
+      "movement",
+      2
+    ],
+    [
+      3,
+      "movement",
+      1
+    ],
+    [
+      3,
+      "movement",
+      2
+    ],
+    [
+      6,
+      "movement",
+      1
+    ],
+    [
+      6,
+      "movement",
+      2
+    ],
+    [
+      9,
+      "movement",
+      1
+    ],
+    [
+      9,
+      "movement",
+      2
+    ],
+    [
+      12,
+      "movement",
+      1
+    ],
+    [
+      12,
+      "movement",
+      2
+    ],
+    [
+      15,
+      "movement",
+      1
+    ],
+    [
+      15,
+      "movement",
+      2
+    ],
+    [
+      18,
+      "movement",
+      1
+    ],
+    [
+      21,
+      "movement",
+      1
+    ],
+    [
+      24,
+      "movement",
+      1
+    ],
+    [
+      27,
+      "movement",
+      1
+    ],
+    [
+      30,
+      "movement",
+      1
+    ],
+    [
+      33,
+      "movement",
+      1
+    ],
+    [
+      36,
+      "movement",
+      1
+    ],
+    [
+      39,
+      "movement",
+      1
+    ],
+    [
+      42,
+      "movement",
+      1
+    ],
+    [
+      45,
+      "movement",
+      1
+    ],
+    [
+      48,
+      "movement",
+      1
+    ],
+    [
+      51,
+      "movement",
+      1
+    ],
+    [
+      54,
+      "movement",
+      1
+    ],
+    [
+      57,
+      "movement",
+      1
+    ],
+    [
+      60,
+      "movement",
+      1
+    ],
+    [
+      63,
+      "movement",
+      1
+    ],
+    [
+      66,
+      "movement",
+      1
+    ],
+    [
+      69,
+      "movement",
+      1
+    ],
+    [
+      72,
+      "movement",
+      1
+    ],
+    [
+      75,
+      "movement",
+      1
+    ],
+    [
+      78,
+      "movement",
+      1
+    ],
+    [
+      81,
+      "movement",
+      1
+    ],
+    [
+      84,
+      "movement",
+      1
+    ],
+    [
+      87,
+      "movement",
+      1
+    ],
+    [
+      90,
+      "movement",
+      1
+    ],
+    [
+      93,
+      "movement",
+      1
+    ],
+    [
+      96,
+      "movement",
+      1
+    ],
+    [
+      99,
+      "movement",
+      1
+    ],
+    [
+      102,
+      "movement",
+      1
+    ],
+    [
+      105,
+      "movement",
+      1
+    ],
+    [
+      108,
+      "movement",
+      1
+    ],
+    [
+      111,
+      "movement",
+      1
+    ],
+    [
+      114,
+      "movement",
+      1
+    ],
+    [
+      117,
+      "movement",
+      1
+    ],
+    [
+      120,
+      "movement",
+      1
+    ],
+    [
+      123,
+      "movement",
+      1
+    ],
+    [
+      126,
+      "movement",
+      1
+    ],
+    [
+      129,
+      "movement",
+      1
+    ],
+    [
+      132,
+      "movement",
+      1
+    ],
+    [
+      135,
+      "movement",
+      1
+    ],
+    [
+      138,
+      "movement",
+      1
+    ],
+    [
+      141,
+      "movement",
+      1
+    ],
+    [
+      144,
+      "movement",
+      1
+    ],
+    [
+      147,
+      "movement",
+      1
+    ],
+    [
+      150,
+      "movement",
+      1
+    ],
+    [
+      153,
+      "movement",
+      1
+    ],
+    [
+      156,
+      "movement",
+      1
+    ],
+    [
+      159,
+      "movement",
+      1
+    ],
+    [
+      162,
+      "movement",
+      1
+    ],
+    [
+      165,
+      "movement",
+      1
+    ],
+    [
+      168,
+      "movement",
+      1
+    ],
+    [
+      171,
+      "movement",
+      1
+    ]
+  ],
+  "frame_analyses": [
+    {
+      "frame_idx": 0,
+      "fencer_id": 2,
+      "observations": [
+        "arm bent",
+        "right leg deeply bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm bent, right leg deeply bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 96.25720835460662,
+        "left_arm": 163.16634841439523,
+        "right_leg": 108.54886902542697,
+        "left_leg": 158.17635856391402,
+        "torso_vertical": 175.21832943022346
+      },
+      "box": [
+        298.0,
+        306.0,
+        571.0,
+        765.0
+      ]
+    },
+    {
+      "frame_idx": 3,
+      "fencer_id": 1,
+      "observations": [
+        "arm bent",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm bent, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 83.26545845484732,
+        "left_arm": 98.03197223471125,
+        "right_leg": 141.59334557575096,
+        "left_leg": 176.6910652002859,
+        "torso_vertical": 179.3772443127935
+      },
+      "box": [
+        1071.0,
+        283.0,
+        1512.0,
+        869.0
+      ]
+    },
+    {
+      "frame_idx": 3,
+      "fencer_id": 2,
+      "observations": [
+        "arm partially extended",
+        "left leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, left leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 132.42526478876206,
+        "left_arm": 132.7382419299734,
+        "right_leg": 161.09778102636704,
+        "left_leg": 139.983644583627,
+        "torso_vertical": 176.63353933657015
+      },
+      "box": [
+        315.0,
+        280.0,
+        594.0,
+        757.0
+      ]
+    },
+    {
+      "frame_idx": 6,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 139.92786002845384,
+        "left_arm": 93.54175314823539,
+        "right_leg": 152.71049240092688,
+        "left_leg": 170.7129836465756,
+        "torso_vertical": 177.49686022041516
+      },
+      "box": [
+        1048.0,
+        273.0,
+        1508.0,
+        866.0
+      ]
+    },
+    {
+      "frame_idx": 6,
+      "fencer_id": 2,
+      "observations": [
+        "arm bent",
+        "right leg slightly bent",
+        "left leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm bent, right leg slightly bent, left leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 90.0,
+        "left_arm": 117.31200159558331,
+        "right_leg": 129.27144357247974,
+        "left_leg": 142.8458024786614,
+        "torso_vertical": 176.15905097466313
+      },
+      "box": [
+        306.0,
+        293.0,
+        605.0,
+        760.0
+      ]
+    },
+    {
+      "frame_idx": 9,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 143.08945264156299,
+        "left_arm": 133.18169703554818,
+        "right_leg": 161.64593928265177,
+        "left_leg": 163.7520280165725,
+        "torso_vertical": 159.65942507221067
+      },
+      "box": [
+        1020.0,
+        268.0,
+        1474.0,
+        866.0
+      ]
+    },
+    {
+      "frame_idx": 9,
+      "fencer_id": 2,
+      "observations": [
+        "arm bent",
+        "right leg deeply bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm bent, right leg deeply bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 87.84703721089954,
+        "left_arm": 39.13039955698529,
+        "right_leg": 105.92090305010387,
+        "left_leg": 154.25684930739916,
+        "torso_vertical": 179.3904934233247
+      },
+      "box": [
+        300.0,
+        291.0,
+        649.0,
+        746.0
+      ]
+    },
+    {
+      "frame_idx": 12,
+      "fencer_id": 1,
+      "observations": [
+        "arm bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 103.87370268548521,
+        "left_arm": 77.20683074691647,
+        "right_leg": 162.6459753637387,
+        "left_leg": 179.49217066797505,
+        "torso_vertical": 175.44783663000766
+      },
+      "box": [
+        995.0,
+        283.0,
+        1467.0,
+        859.0
+      ]
+    },
+    {
+      "frame_idx": 12,
+      "fencer_id": 2,
+      "observations": [
+        "arm partially extended",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 135.8396750946943,
+        "left_arm": 49.523472158901676,
+        "right_leg": 150.80978716754072,
+        "left_leg": 152.91655672909624,
+        "torso_vertical": 173.24946053782105
+      },
+      "box": [
+        324.0,
+        332.0,
+        750.0,
+        747.0
+      ]
+    },
+    {
+      "frame_idx": 15,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 144.3428566190311,
+        "left_arm": 88.02506598911802,
+        "right_leg": 168.91842045187124,
+        "left_leg": 158.92748357984388,
+        "torso_vertical": 175.79732049628055
+      },
+      "box": [
+        993.0,
+        281.0,
+        1463.0,
+        857.0
+      ]
+    },
+    {
+      "frame_idx": 15,
+      "fencer_id": 2,
+      "observations": [
+        "arm partially extended",
+        "right leg slightly bent",
+        "left leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg slightly bent, left leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 156.6643097340685,
+        "left_arm": 151.67162293795903,
+        "right_leg": 149.15034316013248,
+        "left_leg": 135.73134301140496,
+        "torso_vertical": 170.0054164525846
+      },
+      "box": [
+        355.0,
+        272.0,
+        801.0,
+        770.0
+      ]
+    },
+    {
+      "frame_idx": 18,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 139.89909245378777,
+        "left_arm": 106.68394768380625,
+        "right_leg": 133.55953250261044,
+        "left_leg": 151.69861069042727,
+        "torso_vertical": 179.55585556688854
+      },
+      "box": [
+        973.0,
+        304.0,
+        1489.0,
+        850.0
+      ]
+    },
+    {
+      "frame_idx": 21,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg slightly bent",
+        "left leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg slightly bent, left leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 141.53690474694145,
+        "left_arm": 2.1658266819047225,
+        "right_leg": 126.1631358624717,
+        "left_leg": 142.35839908875374,
+        "torso_vertical": 178.72696997994365
+      },
+      "box": [
+        970.0,
+        321.0,
+        1556.0,
+        845.0
+      ]
+    },
+    {
+      "frame_idx": 24,
+      "fencer_id": 1,
+      "observations": [
+        "arm bent",
+        "right leg deeply bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm bent, right leg deeply bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 102.71762868562784,
+        "left_arm": 19.030653308584984,
+        "right_leg": 119.47614851733216,
+        "left_leg": 150.9760954380008,
+        "torso_vertical": 179.60211903816676
+      },
+      "box": [
+        1036.0,
+        334.0,
+        1572.0,
+        865.0
+      ]
+    },
+    {
+      "frame_idx": 27,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 137.36381860031344,
+        "left_arm": 21.26412466055231,
+        "right_leg": 136.90052705327352,
+        "left_leg": 155.66420946251202,
+        "torso_vertical": 172.40535663140858
+      },
+      "box": [
+        1073.0,
+        320.0,
+        1573.0,
+        861.0
+      ]
+    },
+    {
+      "frame_idx": 30,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 140.16633241396482,
+        "left_arm": 2.6353860063957435,
+        "right_leg": 140.58121579074904,
+        "left_leg": 163.48512273701724,
+        "torso_vertical": 170.298073210635
+      },
+      "box": [
+        1062.0,
+        300.0,
+        1567.0,
+        863.0
+      ]
+    },
+    {
+      "frame_idx": 33,
+      "fencer_id": 1,
+      "observations": [
+        "arm bent",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm bent, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 27.6075392235573,
+        "left_arm": 49.57944853940457,
+        "right_leg": 140.90597644375413,
+        "left_leg": 170.11373758491325,
+        "torso_vertical": 168.87081071038887
+      },
+      "box": [
+        1066.0,
+        282.0,
+        1558.0,
+        864.0
+      ]
+    },
+    {
+      "frame_idx": 36,
+      "fencer_id": 1,
+      "observations": [
+        "arm bent",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm bent, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 48.49713232468043,
+        "left_arm": 74.48003366321485,
+        "right_leg": 137.30246786659686,
+        "left_leg": 171.2265506544639,
+        "torso_vertical": 167.51072024560744
+      },
+      "box": [
+        1052.0,
+        285.0,
+        1550.0,
+        867.0
+      ]
+    },
+    {
+      "frame_idx": 39,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 136.39486982161,
+        "left_arm": 80.43388120350693,
+        "right_leg": 133.64680804622031,
+        "left_leg": 172.57917631753597,
+        "torso_vertical": 165.65476842076254
+      },
+      "box": [
+        1033.0,
+        293.0,
+        1543.0,
+        867.0
+      ]
+    },
+    {
+      "frame_idx": 42,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 150.42007730537208,
+        "left_arm": 100.30484646876603,
+        "right_leg": 141.8475752714458,
+        "left_leg": 172.9885304297455,
+        "torso_vertical": 163.8330057129838
+      },
+      "box": [
+        1046.0,
+        273.0,
+        1525.0,
+        856.0
+      ]
+    },
+    {
+      "frame_idx": 45,
+      "fencer_id": 1,
+      "observations": [
+        "arm bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 115.95401521415096,
+        "left_arm": 104.1207533548133,
+        "right_leg": 151.57607158638575,
+        "left_leg": 176.32243052517188,
+        "torso_vertical": 160.14928400387478
+      },
+      "box": [
+        982.0,
+        263.0,
+        1470.0,
+        842.0
+      ]
+    },
+    {
+      "frame_idx": 48,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 143.8418145601917,
+        "left_arm": 95.4403320310055,
+        "right_leg": 150.52550161475926,
+        "left_leg": 167.6782342210894,
+        "torso_vertical": 164.31753657734671
+      },
+      "box": [
+        1013.0,
+        252.0,
+        1423.0,
+        839.0
+      ]
+    },
+    {
+      "frame_idx": 51,
+      "fencer_id": 1,
+      "observations": [
+        "arm bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 82.30394827798342,
+        "left_arm": 88.72311442299501,
+        "right_leg": 155.4854904439978,
+        "left_leg": 160.1882451347938,
+        "torso_vertical": 166.50426671920417
+      },
+      "box": [
+        1008.0,
+        253.0,
+        1394.0,
+        846.0
+      ]
+    },
+    {
+      "frame_idx": 54,
+      "fencer_id": 1,
+      "observations": [
+        "arm bent",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm bent, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 114.96944029313546,
+        "left_arm": 79.9235457008364,
+        "right_leg": 145.50317080239245,
+        "left_leg": 155.35442531184086,
+        "torso_vertical": 168.52065412403448
+      },
+      "box": [
+        1004.0,
+        264.0,
+        1397.0,
+        847.0
+      ]
+    },
+    {
+      "frame_idx": 57,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 135.29475765681238,
+        "left_arm": 76.18558557044123,
+        "right_leg": 131.47682314033403,
+        "left_leg": 157.02305549681125,
+        "torso_vertical": 172.46310281172808
+      },
+      "box": [
+        1017.0,
+        264.0,
+        1391.0,
+        850.0
+      ]
+    },
+    {
+      "frame_idx": 60,
+      "fencer_id": 1,
+      "observations": [
+        "arm bent",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm bent, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 72.50145156273818,
+        "left_arm": 71.6312380319419,
+        "right_leg": 148.81199498670279,
+        "left_leg": 161.33760829514566,
+        "torso_vertical": 169.97209123257522
+      },
+      "box": [
+        980.0,
+        269.0,
+        1392.0,
+        849.0
+      ]
+    },
+    {
+      "frame_idx": 63,
+      "fencer_id": 1,
+      "observations": [
+        "arm bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 18.873988348603657,
+        "left_arm": 76.76496267218548,
+        "right_leg": 155.51788873913404,
+        "left_leg": 160.7704229181855,
+        "torso_vertical": 171.894206418044
+      },
+      "box": [
+        963.0,
+        273.0,
+        1384.0,
+        850.0
+      ]
+    },
+    {
+      "frame_idx": 66,
+      "fencer_id": 1,
+      "observations": [
+        "arm bent",
+        "right leg slightly bent",
+        "left leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm bent, right leg slightly bent, left leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 118.64447529823416,
+        "left_arm": 72.54183046533758,
+        "right_leg": 144.5120048004864,
+        "left_leg": 146.1101590785444,
+        "torso_vertical": 170.59468849904317
+      },
+      "box": [
+        960.0,
+        288.0,
+        1375.0,
+        856.0
+      ]
+    },
+    {
+      "frame_idx": 69,
+      "fencer_id": 1,
+      "observations": [
+        "arm bent",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm bent, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 128.27517339783466,
+        "left_arm": 75.27146622137634,
+        "right_leg": 138.62035462718327,
+        "left_leg": 150.45408461069485,
+        "torso_vertical": 168.82616175818524
+      },
+      "box": [
+        946.0,
+        298.0,
+        1373.0,
+        861.0
+      ]
+    },
+    {
+      "frame_idx": 72,
+      "fencer_id": 1,
+      "observations": [
+        "arm bent",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm bent, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 115.40907547502609,
+        "left_arm": 80.29714276714762,
+        "right_leg": 141.98553205058815,
+        "left_leg": 154.72535974499178,
+        "torso_vertical": 169.30539233591588
+      },
+      "box": [
+        955.0,
+        289.0,
+        1375.0,
+        861.0
+      ]
+    },
+    {
+      "frame_idx": 75,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 132.87250728279847,
+        "left_arm": 87.20061435197559,
+        "right_leg": 147.15062864058342,
+        "left_leg": 158.5329978808914,
+        "torso_vertical": 169.80279442890875
+      },
+      "box": [
+        958.0,
+        294.0,
+        1377.0,
+        862.0
+      ]
+    },
+    {
+      "frame_idx": 78,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 144.6960794631628,
+        "left_arm": 84.66591871324121,
+        "right_leg": 147.8172673462674,
+        "left_leg": 160.74259648113372,
+        "torso_vertical": 169.13421195909166
+      },
+      "box": [
+        960.0,
+        289.0,
+        1381.0,
+        868.0
+      ]
+    },
+    {
+      "frame_idx": 81,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 140.18502960838705,
+        "left_arm": 86.10662021083621,
+        "right_leg": 147.4983990542701,
+        "left_leg": 169.06090881680785,
+        "torso_vertical": 168.9964591482505
+      },
+      "box": [
+        954.0,
+        292.0,
+        1389.0,
+        873.0
+      ]
+    },
+    {
+      "frame_idx": 84,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 142.783755667641,
+        "left_arm": 96.90793652751022,
+        "right_leg": 147.46893753291363,
+        "left_leg": 169.58182879968484,
+        "torso_vertical": 170.36570498320606
+      },
+      "box": [
+        958.0,
+        293.0,
+        1390.0,
+        877.0
+      ]
+    },
+    {
+      "frame_idx": 87,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 145.26830579801023,
+        "left_arm": 101.44487571549493,
+        "right_leg": 149.69154273506447,
+        "left_leg": 168.06816645813214,
+        "torso_vertical": 170.53767779197446
+      },
+      "box": [
+        950.0,
+        290.0,
+        1388.0,
+        879.0
+      ]
+    },
+    {
+      "frame_idx": 90,
+      "fencer_id": 1,
+      "observations": [
+        "arm bent",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm bent, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 50.274437484888644,
+        "left_arm": 96.1500207292182,
+        "right_leg": 148.60471039178873,
+        "left_leg": 169.60536601580358,
+        "torso_vertical": 170.999963510215
+      },
+      "box": [
+        951.0,
+        300.0,
+        1396.0,
+        891.0
+      ]
+    },
+    {
+      "frame_idx": 93,
+      "fencer_id": 1,
+      "observations": [
+        "arm bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 129.49452214202168,
+        "left_arm": 94.28307326271499,
+        "right_leg": 150.60729647050184,
+        "left_leg": 170.44660122704104,
+        "torso_vertical": 169.77495261544868
+      },
+      "box": [
+        957.0,
+        304.0,
+        1405.0,
+        891.0
+      ]
+    },
+    {
+      "frame_idx": 96,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 141.29126858829534,
+        "left_arm": 96.64504052269477,
+        "right_leg": 152.6426108952516,
+        "left_leg": 169.77845094430091,
+        "torso_vertical": 167.20354628529387
+      },
+      "box": [
+        963.0,
+        306.0,
+        1420.0,
+        894.0
+      ]
+    },
+    {
+      "frame_idx": 99,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 142.96948401540038,
+        "left_arm": 88.1346912853777,
+        "right_leg": 156.23610852268274,
+        "left_leg": 168.39835981201463,
+        "torso_vertical": 166.17659277268422
+      },
+      "box": [
+        995.0,
+        310.0,
+        1431.0,
+        894.0
+      ]
+    },
+    {
+      "frame_idx": 102,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 141.10720708095323,
+        "left_arm": 80.70669140060288,
+        "right_leg": 145.53136473635035,
+        "left_leg": 167.40775193525064,
+        "torso_vertical": 166.13453331251938
+      },
+      "box": [
+        1016.0,
+        320.0,
+        1446.0,
+        900.0
+      ]
+    },
+    {
+      "frame_idx": 105,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 143.08609638776056,
+        "left_arm": 83.38674647895758,
+        "right_leg": 146.10333801054685,
+        "left_leg": 165.32344642320078,
+        "torso_vertical": 166.6483635854298
+      },
+      "box": [
+        1038.0,
+        317.0,
+        1452.0,
+        902.0
+      ]
+    },
+    {
+      "frame_idx": 108,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 143.0983946764227,
+        "left_arm": 82.42999377789258,
+        "right_leg": 146.83558334427028,
+        "left_leg": 165.07057620388557,
+        "torso_vertical": 167.01841979022785
+      },
+      "box": [
+        1045.0,
+        321.0,
+        1466.0,
+        906.0
+      ]
+    },
+    {
+      "frame_idx": 111,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 133.2334303864869,
+        "left_arm": 76.69714939314187,
+        "right_leg": 141.6554524228559,
+        "left_leg": 156.99421564420527,
+        "torso_vertical": 167.45217610186438
+      },
+      "box": [
+        1053.0,
+        332.0,
+        1477.0,
+        911.0
+      ]
+    },
+    {
+      "frame_idx": 114,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg deeply bent",
+        "left leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg deeply bent, left leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 145.3317273663547,
+        "left_arm": 59.18649429356072,
+        "right_leg": 112.40331824923912,
+        "left_leg": 137.69927922017615,
+        "torso_vertical": 167.88016269718196
+      },
+      "box": [
+        1041.0,
+        378.0,
+        1490.0,
+        916.0
+      ]
+    },
+    {
+      "frame_idx": 117,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg deeply bent",
+        "left leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg deeply bent, left leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 152.756282398148,
+        "left_arm": 42.478548559772214,
+        "right_leg": 119.99995856600836,
+        "left_leg": 136.5653325147939,
+        "torso_vertical": 165.33217509629992
+      },
+      "box": [
+        1003.0,
+        399.0,
+        1505.0,
+        918.0
+      ]
+    },
+    {
+      "frame_idx": 120,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg slightly bent",
+        "left leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg slightly bent, left leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 147.59779717552496,
+        "left_arm": 16.762554461832718,
+        "right_leg": 131.93413280893967,
+        "left_leg": 145.28846948773975,
+        "torso_vertical": 164.64986350757562
+      },
+      "box": [
+        928.0,
+        403.0,
+        1509.0,
+        921.0
+      ]
+    },
+    {
+      "frame_idx": 123,
+      "fencer_id": 1,
+      "observations": [
+        "arm fully extended forward",
+        "right leg slightly bent",
+        "left leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm fully extended forward, right leg slightly bent, left leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 169.81182710644183,
+        "left_arm": 154.88157070043272,
+        "right_leg": 120.48784302861567,
+        "left_leg": 131.57496196072393,
+        "torso_vertical": 166.83991935338193
+      },
+      "box": [
+        887.0,
+        386.0,
+        1474.0,
+        911.0
+      ]
+    },
+    {
+      "frame_idx": 126,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg slightly bent",
+        "left leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg slightly bent, left leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 133.33591178259175,
+        "left_arm": 171.31207898816635,
+        "right_leg": 123.42672583208957,
+        "left_leg": 127.98726812781335,
+        "torso_vertical": 170.03619581009278
+      },
+      "box": [
+        869.0,
+        386.0,
+        1446.0,
+        915.0
+      ]
+    },
+    {
+      "frame_idx": 129,
+      "fencer_id": 1,
+      "observations": [
+        "arm bent",
+        "right leg slightly bent",
+        "left leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm bent, right leg slightly bent, left leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 111.39501036925215,
+        "left_arm": 151.43522726882986,
+        "right_leg": 147.27526845693703,
+        "left_leg": 147.3173401098722,
+        "torso_vertical": 172.76016260337795
+      },
+      "box": [
+        928.0,
+        364.0,
+        1470.0,
+        917.0
+      ]
+    },
+    {
+      "frame_idx": 132,
+      "fencer_id": 1,
+      "observations": [
+        "arm bent",
+        "right leg slightly bent",
+        "left leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm bent, right leg slightly bent, left leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 115.92579425024499,
+        "left_arm": 60.73007283718636,
+        "right_leg": 140.89259019867683,
+        "left_leg": 141.02304373611983,
+        "torso_vertical": 167.85342672231616
+      },
+      "box": [
+        1068.0,
+        391.0,
+        1478.0,
+        928.0
+      ]
+    },
+    {
+      "frame_idx": 135,
+      "fencer_id": 1,
+      "observations": [
+        "arm fully extended forward",
+        "right leg slightly bent",
+        "left leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm fully extended forward, right leg slightly bent, left leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 167.98935704828958,
+        "left_arm": 172.09015904810627,
+        "right_leg": 129.8116238895713,
+        "left_leg": 133.2002409445332,
+        "torso_vertical": 156.40867990540212
+      },
+      "box": [
+        1076.0,
+        408.0,
+        1566.0,
+        904.0
+      ]
+    },
+    {
+      "frame_idx": 138,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg deeply bent",
+        "left leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg deeply bent, left leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 137.19656956545882,
+        "left_arm": 147.65255650055795,
+        "right_leg": 115.83171581747189,
+        "left_leg": 144.9303695820432,
+        "torso_vertical": 154.64524299184325
+      },
+      "box": [
+        1083.0,
+        444.0,
+        1645.0,
+        925.0
+      ]
+    },
+    {
+      "frame_idx": 141,
+      "fencer_id": 1,
+      "observations": [
+        "arm bent",
+        "right leg deeply bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm bent, right leg deeply bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 120.64145567648058,
+        "left_arm": 98.71271286742507,
+        "right_leg": 114.97956468282102,
+        "left_leg": 155.55155138261307,
+        "torso_vertical": 156.85284194965826
+      },
+      "box": [
+        1092.0,
+        456.0,
+        1661.0,
+        926.0
+      ]
+    },
+    {
+      "frame_idx": 144,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg deeply bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg deeply bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 144.18883607735876,
+        "left_arm": 83.04202626677909,
+        "right_leg": 116.71484372341827,
+        "left_leg": 161.3744312281781,
+        "torso_vertical": 153.08072904210758
+      },
+      "box": [
+        1088.0,
+        454.0,
+        1647.0,
+        926.0
+      ]
+    },
+    {
+      "frame_idx": 147,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "right leg deeply bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, right leg deeply bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 157.07586570520326,
+        "left_arm": 116.5072204831025,
+        "right_leg": 109.06771895548307,
+        "left_leg": 159.1351551442177,
+        "torso_vertical": 149.7845274001626
+      },
+      "box": [
+        1015.0,
+        406.0,
+        1621.0,
+        898.0
+      ]
+    },
+    {
+      "frame_idx": 150,
+      "fencer_id": 1,
+      "observations": [
+        "arm fully extended forward",
+        "right leg slightly bent",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm fully extended forward, right leg slightly bent, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 173.17045856318822,
+        "left_arm": 67.00825255712913,
+        "right_leg": 141.2287989673376,
+        "left_leg": 157.7797675603246,
+        "torso_vertical": 156.14952609192306
+      },
+      "box": [
+        959.0,
+        348.0,
+        1560.0,
+        890.0
+      ]
+    },
+    {
+      "frame_idx": 153,
+      "fencer_id": 1,
+      "observations": [
+        "arm fully extended forward",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm fully extended forward, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 173.15477587369978,
+        "left_arm": 96.60072399882317,
+        "right_leg": 156.12789641992902,
+        "left_leg": 179.5494927265342,
+        "torso_vertical": 165.6926428795897
+      },
+      "box": [
+        967.0,
+        315.0,
+        1455.0,
+        880.0
+      ]
+    },
+    {
+      "frame_idx": 156,
+      "fencer_id": 1,
+      "observations": [
+        "arm fully extended forward",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm fully extended forward, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 175.4922812377139,
+        "left_arm": 134.31077004910745,
+        "right_leg": 168.2668337547684,
+        "left_leg": 173.38927155845354,
+        "torso_vertical": 172.89810543334312
+      },
+      "box": [
+        994.0,
+        290.0,
+        1438.0,
+        905.0
+      ]
+    },
+    {
+      "frame_idx": 159,
+      "fencer_id": 1,
+      "observations": [
+        "arm fully extended forward",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm fully extended forward, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 168.89652951878307,
+        "left_arm": 178.1983471501369,
+        "right_leg": 173.3604835294074,
+        "left_leg": 178.19015700675538,
+        "torso_vertical": 179.45606906720877
+      },
+      "box": [
+        1071.0,
+        286.0,
+        1428.0,
+        897.0
+      ]
+    },
+    {
+      "frame_idx": 162,
+      "fencer_id": 1,
+      "observations": [
+        "arm fully extended forward",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm fully extended forward, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 167.78957192364874,
+        "left_arm": 148.34596627006144,
+        "right_leg": 172.77749317850095,
+        "left_leg": 178.90283090889406,
+        "torso_vertical": 175.77659302334445
+      },
+      "box": [
+        1072.0,
+        291.0,
+        1422.0,
+        889.0
+      ]
+    },
+    {
+      "frame_idx": 165,
+      "fencer_id": 1,
+      "observations": [
+        "arm fully extended forward",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm fully extended forward, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 175.47278747643367,
+        "left_arm": 135.87601398911798,
+        "right_leg": 167.7835906950491,
+        "left_leg": 175.60470377456366,
+        "torso_vertical": 170.98333359399714
+      },
+      "box": [
+        1085.0,
+        293.0,
+        1420.0,
+        882.0
+      ]
+    },
+    {
+      "frame_idx": 168,
+      "fencer_id": 1,
+      "observations": [
+        "arm fully extended forward",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm fully extended forward, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 164.79376846896346,
+        "left_arm": 134.21296848769896,
+        "right_leg": 170.91463321071785,
+        "left_leg": 179.89505148557393,
+        "torso_vertical": 171.51105611949532
+      },
+      "box": [
+        1131.0,
+        291.0,
+        1439.0,
+        867.0
+      ]
+    },
+    {
+      "frame_idx": 171,
+      "fencer_id": 1,
+      "observations": [
+        "arm partially extended",
+        "torso leaning forward significantly"
+      ],
+      "sentence": "Fencer is arm partially extended, torso leaning forward significantly.",
+      "angles": {
+        "right_arm": 130.6730938298689,
+        "left_arm": 112.67471881659255,
+        "right_leg": 172.1565789250494,
+        "left_leg": 176.01726739395633,
+        "torso_vertical": 172.62623363866987
+      },
+      "box": [
+        1189.0,
+        281.0,
+        1447.0,
+        876.0
+      ]
+    }
+  ]
+}

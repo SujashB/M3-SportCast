@@ -7,6 +7,8 @@ from PIL import Image
 import mediapipe as mp
 import math
 from typing import List, Dict, Tuple, Optional
+from fencer_detector import FencerDetector
+import argparse
 
 # Optional mmpose import - we'll use if available, otherwise fall back to mediapipe
 try:
@@ -55,21 +57,25 @@ class PoseEstimator:
                 min_tracking_confidence=0.5
             )
     
-    def estimate_pose(self, frame):
+    def estimate_pose(self, frame, fencer_box=None):
         """Estimate pose in a single frame"""
         if self.use_mmpose:
-            return self._estimate_pose_mmpose(frame)
+            return self._estimate_pose_mmpose(frame, fencer_box)
         else:
-            return self._estimate_pose_mediapipe(frame)
+            return self._estimate_pose_mediapipe(frame, fencer_box)
     
-    def _estimate_pose_mmpose(self, frame):
+    def _estimate_pose_mmpose(self, frame, fencer_box=None):
         """Estimate pose using mmpose"""
-        # Person detection
-        det_results = inference_detector(self.det_model, frame)
-        person_results = det_results[0]  # Class 0 in COCO is person
-        
-        # Keep only high-confidence detections
-        person_results = [pr for pr in person_results if pr[4] > 0.5]
+        if fencer_box:
+            # Use the provided fencer box
+            person_results = [fencer_box]
+        else:
+            # Person detection
+            det_results = inference_detector(self.det_model, frame)
+            person_results = det_results[0]  # Class 0 in COCO is person
+            
+            # Keep only high-confidence detections
+            person_results = [pr for pr in person_results if pr[4] > 0.5]
         
         if not person_results:
             return None
@@ -84,8 +90,13 @@ class PoseEstimator:
         keypoints = pose_results[0]['keypoints']
         return keypoints
     
-    def _estimate_pose_mediapipe(self, frame):
+    def _estimate_pose_mediapipe(self, frame, fencer_box=None):
         """Estimate pose using mediapipe"""
+        if fencer_box:
+            # Crop frame to fencer box
+            x1, y1, x2, y2 = map(int, fencer_box[:4])
+            frame = frame[y1:y2, x1:x2]
+        
         # Convert BGR to RGB
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = self.pose.process(rgb_frame)
@@ -102,6 +113,10 @@ class PoseEstimator:
         # Map MediaPipe landmarks to common format
         for idx, landmark in enumerate(landmarks):
             x, y = int(landmark.x * width), int(landmark.y * height)
+            if fencer_box:
+                # Adjust coordinates back to original frame
+                x += x1
+                y += y1
             # Add visibility score
             keypoints.append([x, y, landmark.visibility])
         
@@ -392,8 +407,9 @@ def process_video_with_pose(video_path, output_path=None, save_frames=False):
     """
     Process a video with pose estimation and return frame-by-frame analysis
     """
-    # Initialize pose estimator
+    # Initialize pose estimator and fencer detector
     pose_estimator = PoseEstimator(use_mmpose=MMPOSE_AVAILABLE)
+    fencer_detector = FencerDetector()
     
     # Open video file
     cap = cv2.VideoCapture(video_path)
@@ -429,51 +445,62 @@ def process_video_with_pose(video_path, output_path=None, save_frames=False):
         if frame_idx % 3 == 0:
             print(f"Processing frame {frame_idx}/{frame_count}")
             
-            # Estimate pose
-            keypoints = pose_estimator.estimate_pose(frame)
+            # Detect fencers
+            detections = fencer_detector.detect_fencers(frame)
+            tracked_boxes = fencer_detector.track_fencers(frame, detections)
             
-            if keypoints is not None:
-                # Calculate angles
-                angles = pose_estimator.calculate_angles(keypoints, prev_keypoints)
-                
-                # Analyze movement
-                observations = pose_estimator.analyze_fencing_movement(angles)
-                
-                # Generate descriptive sentence
-                sentence = generate_descriptive_sentence(observations)
-                
-                # Draw pose on frame
-                annotated_frame = pose_estimator.draw_pose(frame, keypoints)
-                
-                # Add text with observations
-                y_offset = 30
-                for obs in observations:
-                    cv2.putText(annotated_frame, obs, (10, y_offset), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-                    y_offset += 25
-                
-                # Store analysis results
-                frame_analyses.append({
-                    'frame_idx': frame_idx,
-                    'angles': angles,
-                    'observations': observations,
-                    'sentence': sentence
-                })
-                
-                # Save processed frame
-                if save_frames:
-                    processed_frames.append(annotated_frame)
-                
-                # Update previous keypoints
-                prev_keypoints = keypoints
-                
-                # Write frame to output video
-                if output_path:
-                    out.write(annotated_frame)
+            if tracked_boxes:
+                # Process each detected fencer
+                for fencer_id, box in tracked_boxes:
+                    # Estimate pose for this fencer
+                    keypoints = pose_estimator.estimate_pose(frame, box)
+                    
+                    if keypoints is not None:
+                        # Calculate angles
+                        angles = pose_estimator.calculate_angles(keypoints, prev_keypoints)
+                        
+                        # Analyze movement
+                        observations = pose_estimator.analyze_fencing_movement(angles)
+                        
+                        # Generate descriptive sentence
+                        sentence = generate_descriptive_sentence(observations)
+                        
+                        # Draw pose on frame
+                        annotated_frame = pose_estimator.draw_pose(frame, keypoints)
+                        
+                        # Add text with observations and fencer ID
+                        y_offset = 30
+                        cv2.putText(annotated_frame, f"Fencer {fencer_id}", (10, y_offset), 
+                                  cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                        y_offset += 25
+                        for obs in observations:
+                            cv2.putText(annotated_frame, obs, (10, y_offset), 
+                                      cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                            y_offset += 25
+                        
+                        # Store analysis results
+                        frame_analyses.append({
+                            'frame_idx': frame_idx,
+                            'fencer_id': fencer_id,
+                            'angles': angles,
+                            'observations': observations,
+                            'sentence': sentence
+                        })
+                        
+                        # Save processed frame
+                        if save_frames:
+                            processed_frames.append(annotated_frame)
+                        
+                        # Update previous keypoints
+                        prev_keypoints = keypoints
+                        
+                        # Write frame to output video
+                        if output_path:
+                            out.write(annotated_frame)
             else:
-                print(f"No pose detected in frame {frame_idx}")
+                print(f"No fencers detected in frame {frame_idx}")
                 if output_path:
-                    out.write(frame)  # Write original frame if no pose detected
+                    out.write(frame)  # Write original frame if no fencers detected
         
         frame_idx += 1
     
@@ -544,15 +571,23 @@ def enhance_videomae_with_pose(video_path, videomae_model, processor, pose_descr
     return pose_probs
 
 if __name__ == "__main__":
-    # Example usage
-    video_path = "evenevenmorecropped (1).mp4"
-    output_path = "pose_analysis.mp4"
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Process a fencing video with pose estimation')
+    parser.add_argument('video_path', type=str, help='Path to the input video file')
+    parser.add_argument('--output', type=str, default=None, help='Path to save the output video (optional)')
+    parser.add_argument('--save-frames', action='store_true', help='Save sample frames as images')
+    args = parser.parse_args()
+    
+    # Set output path if not specified
+    if args.output is None:
+        base_name = os.path.splitext(os.path.basename(args.video_path))[0]
+        args.output = f"pose_analysis_{base_name}.mp4"
     
     # Process video with pose estimation
-    frame_analyses, frames = process_video_with_pose(video_path, output_path, save_frames=True)
+    frame_analyses, frames = process_video_with_pose(args.video_path, args.output, save_frames=args.save_frames)
     
     # Display some sample frames with pose estimation
-    if frames:
+    if frames and args.save_frames:
         plt.figure(figsize=(15, 10))
         for i in range(min(4, len(frames))):
             idx = i * len(frames) // 4
@@ -563,7 +598,8 @@ if __name__ == "__main__":
         
         plt.suptitle("Fencing Pose Analysis")
         plt.tight_layout()
-        plt.savefig("pose_analysis_frames.png")
+        base_name = os.path.splitext(os.path.basename(args.video_path))[0]
+        plt.savefig(f"pose_analysis_frames_{base_name}.png")
         plt.close()
     
     # Extract pose descriptions

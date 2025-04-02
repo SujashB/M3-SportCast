@@ -1,0 +1,37 @@
+{
+  "name": "Fencer Detection Dataset",
+  "labels": [
+    {
+      "name": "fencer",
+      "color": "#FF0000",
+      "attributes": []
+    }
+  ],
+  "segments": [
+    {
+      "start": 0,
+      "stop": 150,
+      "subset": "train"
+    }
+  ],
+  "image_quality": 100,
+  "overlap": 0,
+  "segment_size": 150,
+  "z_order": false,
+  "frame_filter": "",
+  "frame_step": 1,
+  "task_size": 150,
+  "start_frame": 0,
+  "stop_frame": 150,
+  "frame_count": 150,
+  "use_zip_chunks": true,
+  "use_cache": true,
+  "source_storage": {
+    "location": "local",
+    "path": "cvat_preparation"
+  },
+  "target_storage": {
+    "location": "local",
+    "path": "cvat_preparation"
+  }
+}
