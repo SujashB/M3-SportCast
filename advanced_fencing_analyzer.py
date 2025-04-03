@@ -13,14 +13,21 @@ import matplotlib.patches as patches
 from pose_estimation_helper import PoseEstimator, process_video_with_pose, extract_pose_descriptions, generate_descriptive_sentence
 # Import fencer detector
 from fencer_detector import FencerDetector
+# Import our enhanced fencer detector with CNN and sword detection
+from enhanced_fencer_detector import EnhancedFencerDetector, SwordDetector
 
 class SimplifiedFencingAnalyzer:
     """
     Simplified fencing analysis system that focuses on pose estimation
     """
-    def __init__(self):
+    def __init__(self, pose_model_path=None, sword_model_path=None, use_enhanced_detector=True):
         """Initialize the analyzer with pose estimation capability"""
         print("Initializing Simplified Fencing Analyzer...")
+        
+        # Check if we should use the enhanced detector
+        self.use_enhanced_detector = use_enhanced_detector
+        self.pose_model_path = pose_model_path
+        self.sword_model_path = sword_model_path
         
         # Initialize pose estimator
         print("Loading pose estimator...")
@@ -35,8 +42,15 @@ class SimplifiedFencingAnalyzer:
         # Initialize fencer detector
         print("Loading fencer detector...")
         try:
-            self.fencer_detector = FencerDetector()
-            print("Fencer detector initialized")
+            if self.use_enhanced_detector:
+                self.fencer_detector = EnhancedFencerDetector(
+                    pose_model_path=self.pose_model_path,
+                    sword_model_path=self.sword_model_path
+                )
+                print("Enhanced fencer detector initialized with CNN pose classifier and sword detector")
+            else:
+                self.fencer_detector = FencerDetector()
+                print("Basic fencer detector initialized")
         except ImportError as e:
             print(f"Error initializing fencer detector: {e}")
             self.fencer_detector = None
@@ -79,7 +93,26 @@ class SimplifiedFencingAnalyzer:
         # Detect fencers in the first frame
         detections = []
         if self.fencer_detector:
-            detections = self.fencer_detector.detect_fencers(frame)
+            if self.use_enhanced_detector:
+                tracked_items, sword_detections = self.fencer_detector.track_and_classify(frame)
+                
+                # Convert tracked items to detections format expected by the visualization code
+                detections = []
+                for item in tracked_items:
+                    fencer_id = item['fencer_id']
+                    box = item['box']
+                    pose_class = item.get('pose_class', 'neutral')
+                    
+                    detections.append({
+                        'box': box,
+                        'fencer_id': fencer_id,
+                        'pose_class': pose_class
+                    })
+                
+                # Store sword detections for reference
+                self.sword_detections = sword_detections
+            else:
+                detections = self.fencer_detector.detect_fencers(frame)
         
         # Create a larger figure for better visibility
         plt.figure(figsize=(12, 8))
@@ -91,11 +124,35 @@ class SimplifiedFencingAnalyzer:
         for i, detection in enumerate(detections):
             box = detection['box']
             x1, y1, x2, y2 = box
-            rect = patches.Rectangle((x1, y1), x2-x1, y2-y1, linewidth=2, edgecolor='g', facecolor='none')
+            fencer_id = detection.get('fencer_id', i)
+            pose_class = detection.get('pose_class', 'neutral')
+            
+            # Use different colors for different pose classes
+            color = 'g'  # Default green
+            if pose_class == 'attack':
+                color = 'r'
+            elif pose_class == 'defense':
+                color = 'b'
+            elif pose_class == 'lunge':
+                color = 'm'
+            
+            rect = patches.Rectangle((x1, y1), x2-x1, y2-y1, linewidth=2, edgecolor=color, facecolor='none')
             ax.add_patch(rect)
-            plt.text(x1, y1-10, f"Fencer {i}", color='green', fontsize=12, weight='bold')
+            plt.text(x1, y1-10, f"Fencer {fencer_id} ({pose_class})", color=color, fontsize=12, weight='bold')
         
-        plt.title("First Frame - Detected Fencers")
+        # Draw sword detections if available
+        if hasattr(self, 'sword_detections') and self.sword_detections:
+            for det in self.sword_detections:
+                box = det['box']
+                x1, y1, x2, y2 = box
+                class_name = det['class_name']
+                
+                # Use orange for sword parts
+                rect = patches.Rectangle((x1, y1), x2-x1, y2-y1, linewidth=2, edgecolor='orange', facecolor='none')
+                ax.add_patch(rect)
+                plt.text(x1, y1-10, class_name, color='orange', fontsize=10)
+        
+        plt.title("First Frame - Detected Fencers & Swords")
         plt.axis('off')
         
         # Save the annotated frame
@@ -187,6 +244,9 @@ class SimplifiedFencingAnalyzer:
             fencer_detection_counts = {fencer_id: 0 for fencer_id in self.manual_fencer_ids} if self.manual_fencer_ids else {}
             last_known_boxes = {}  # Store last known location of each fencer
             
+            # Track sword detections for statistics
+            sword_detection_counts = {"blade-guard": 0, "blade-tip": 0, "fencing-blade": 0}
+            
             while cap.isOpened() and frame_count < total_frames:
                 ret, frame = cap.read()
                 if not ret:
@@ -196,49 +256,44 @@ class SimplifiedFencingAnalyzer:
                 if frame_count % 3 == 0:
                     print(f"Processing frame {frame_count}/{total_frames}")
                     
-                    # Detect fencers using YOLOv8
-                    detections = self.fencer_detector.detect_fencers(frame)
-                    
-                    # Track fencers to maintain identity
-                    tracked_boxes = self.fencer_detector.track_fencers(frame, detections)
-                    
-                    # Filter tracked boxes if manual selection is active
-                    if self.manual_fencer_ids:
-                        # First apply the filter based on IDs
-                        tracked_boxes = [(fencer_id, box) for fencer_id, box in tracked_boxes 
-                                         if fencer_id in self.manual_fencer_ids]
+                    # Detect fencers using YOLOv8 - different approach for enhanced detector
+                    if self.use_enhanced_detector:
+                        # Use the enhanced detector with CNN classifier and sword detection
+                        tracked_items, sword_detections = self.fencer_detector.track_and_classify(frame)
                         
-                        # Check if we're missing any selected fencers
-                        current_ids = [fid for fid, _ in tracked_boxes]
-                        missing_ids = [fid for fid in self.manual_fencer_ids if fid not in current_ids]
+                        # Filter tracked items if manual selection is active
+                        if self.manual_fencer_ids:
+                            tracked_items = [item for item in tracked_items 
+                                            if item['fencer_id'] in self.manual_fencer_ids]
                         
-                        # For missing fencers, use their last known location if available
-                        for missing_id in missing_ids:
-                            if missing_id in last_known_boxes:
-                                print(f"Using last known location for fencer {missing_id} in frame {frame_count}")
-                                tracked_boxes.append((missing_id, last_known_boxes[missing_id]))
-                    
-                    # Create a copy of the frame for visualization
-                    annotated_frame = frame.copy()
-                    
-                    # Add frame number to the annotated frame
-                    cv2.putText(annotated_frame, f"Frame: {frame_count}", (20, 30), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-                    
-                    if tracked_boxes:
-                        # Update detection counts and last known locations
-                        for fencer_id, box in tracked_boxes:
+                        # Create a copy of the frame for visualization
+                        annotated_frame = self.fencer_detector.draw_enhanced_detections(
+                            frame.copy(), tracked_items, sword_detections
+                        )
+                        
+                        # Add frame number to the annotated frame
+                        cv2.putText(annotated_frame, f"Frame: {frame_count}", (20, 30), 
+                                  cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+                        
+                        # Update sword detection counts
+                        if sword_detections:
+                            for det in sword_detections:
+                                class_name = det['class_name']
+                                if class_name in sword_detection_counts:
+                                    sword_detection_counts[class_name] += 1
+                        
+                        # Process each detected fencer - now using tracked_items directly
+                        for item in tracked_items:
+                            fencer_id = item['fencer_id']
+                            box = item['box']
+                            pose_class = item.get('pose_class', 'neutral')
+                            
+                            # Update statistics
                             if fencer_id in fencer_detection_counts:
                                 fencer_detection_counts[fencer_id] += 1
                             
                             # Always update the last known box for this fencer
                             last_known_boxes[fencer_id] = box
-                        
-                        # Process each detected fencer
-                        for fencer_id, box in tracked_boxes:
-                            # Save box for first frame if it's a manually selected fencer
-                            if frame_count == 0 and fencer_id in self.manual_fencer_ids:
-                                manual_boxes[fencer_id] = box
                             
                             # Estimate pose specifically for this fencer's bounding box
                             keypoints = self.pose_estimator.estimate_pose(frame, box)
@@ -250,24 +305,12 @@ class SimplifiedFencingAnalyzer:
                                 # Analyze movement
                                 observations = self.pose_estimator.analyze_fencing_movement(angles)
                                 
-                                # Generate descriptive sentence
-                                sentence = generate_descriptive_sentence(observations)
+                                # Generate descriptive sentence - include CNN pose classification
+                                base_sentence = generate_descriptive_sentence(observations)
+                                sentence = f"{base_sentence} CNN classifies as: {pose_class}"
                                 
                                 # Draw pose on frame
                                 annotated_frame = self.pose_estimator.draw_pose(annotated_frame, keypoints)
-                                
-                                # Draw bounding box
-                                x1, y1, x2, y2 = box
-                                cv2.rectangle(annotated_frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-                                cv2.putText(annotated_frame, f"Fencer {fencer_id}", (int(x1), int(y1)-10), 
-                                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-                                
-                                # Add text with observations
-                                y_offset = int(y1) + 30
-                                for obs in observations:
-                                    cv2.putText(annotated_frame, obs, (int(x1), y_offset), 
-                                              cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-                                    y_offset += 25
                                 
                                 # Store analysis results
                                 frame_analyses.append({
@@ -276,10 +319,94 @@ class SimplifiedFencingAnalyzer:
                                     'angles': angles,
                                     'observations': observations,
                                     'sentence': sentence,
-                                    'box': [float(x) for x in box]
+                                    'box': [float(x) for x in box],
+                                    'pose_class': pose_class
                                 })
                     else:
-                        print(f"No fencers detected in frame {frame_count}")
+                        # Use the original detection approach
+                        detections = self.fencer_detector.detect_fencers(frame)
+                        
+                        # Track fencers to maintain identity
+                        tracked_boxes = self.fencer_detector.track_fencers(frame, detections)
+                        
+                        # Filter tracked boxes if manual selection is active
+                        if self.manual_fencer_ids:
+                            # First apply the filter based on IDs
+                            tracked_boxes = [(fencer_id, box) for fencer_id, box in tracked_boxes 
+                                            if fencer_id in self.manual_fencer_ids]
+                            
+                            # Check if we're missing any selected fencers
+                            current_ids = [fid for fid, _ in tracked_boxes]
+                            missing_ids = [fid for fid in self.manual_fencer_ids if fid not in current_ids]
+                            
+                            # For missing fencers, use their last known location if available
+                            for missing_id in missing_ids:
+                                if missing_id in last_known_boxes:
+                                    print(f"Using last known location for fencer {missing_id} in frame {frame_count}")
+                                    tracked_boxes.append((missing_id, last_known_boxes[missing_id]))
+                        
+                        # Create a copy of the frame for visualization
+                        annotated_frame = frame.copy()
+                        
+                        # Add frame number to the annotated frame
+                        cv2.putText(annotated_frame, f"Frame: {frame_count}", (20, 30), 
+                                  cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+                        
+                        if tracked_boxes:
+                            # Update detection counts and last known locations
+                            for fencer_id, box in tracked_boxes:
+                                if fencer_id in fencer_detection_counts:
+                                    fencer_detection_counts[fencer_id] += 1
+                                
+                                # Always update the last known box for this fencer
+                                last_known_boxes[fencer_id] = box
+                            
+                            # Process each detected fencer
+                            for fencer_id, box in tracked_boxes:
+                                # Save box for first frame if it's a manually selected fencer
+                                if frame_count == 0 and fencer_id in self.manual_fencer_ids:
+                                    manual_boxes[fencer_id] = box
+                                
+                                # Estimate pose specifically for this fencer's bounding box
+                                keypoints = self.pose_estimator.estimate_pose(frame, box)
+                                
+                                if keypoints is not None:
+                                    # Calculate angles
+                                    angles = self.pose_estimator.calculate_angles(keypoints)
+                                    
+                                    # Analyze movement
+                                    observations = self.pose_estimator.analyze_fencing_movement(angles)
+                                    
+                                    # Generate descriptive sentence
+                                    sentence = generate_descriptive_sentence(observations)
+                                    
+                                    # Draw pose on frame
+                                    annotated_frame = self.pose_estimator.draw_pose(annotated_frame, keypoints)
+                                    
+                                    # Draw bounding box
+                                    x1, y1, x2, y2 = box
+                                    cv2.rectangle(annotated_frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+                                    cv2.putText(annotated_frame, f"Fencer {fencer_id}", (int(x1), int(y1)-10), 
+                                              cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                                    
+                                    # Add text with observations
+                                    y_offset = int(y1) + 30
+                                    for obs in observations:
+                                        cv2.putText(annotated_frame, obs, (int(x1), y_offset), 
+                                                  cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                                        y_offset += 25
+                                    
+                                    # Store analysis results
+                                    frame_analyses.append({
+                                        'frame_idx': frame_count,
+                                        'fencer_id': fencer_id,
+                                        'angles': angles,
+                                        'observations': observations,
+                                        'sentence': sentence,
+                                        'box': [float(x) for x in box]
+                                    })
+                        else:
+                            print(f"No fencers detected in frame {frame_count}")
                     
                     # Save for visualization
                     if frame_count % 15 == 0 and save_visualization:  # Sample frames for visualization
@@ -301,6 +428,15 @@ class SimplifiedFencingAnalyzer:
                 print("\nFencer detection statistics:")
                 for fencer_id, count in fencer_detection_counts.items():
                     print(f"Fencer {fencer_id}: detected in {count} frames")
+            
+            # Print sword detection statistics if available
+            if self.use_enhanced_detector:
+                print("\nSword detection statistics:")
+                if sum(sword_detection_counts.values()) > 0:
+                    for part, count in sword_detection_counts.items():
+                        print(f"  {part}: {count} detections")
+                else:
+                    print("  No sword parts detected")
         else:
             # Fall back to standard pose estimation without fencer detection
             print(f"Fencer detector not available. Running general pose estimation...")
@@ -354,12 +490,17 @@ class SimplifiedFencingAnalyzer:
             fencer_id = analysis['fencer_id']
             desc_lower = analysis['sentence'].lower()
             
+            # Get CNN classification if available
+            cnn_pose_class = analysis.get('pose_class', 'unknown')
+            
             # Initialize counter for this fencer if not exists
             if fencer_id not in fencer_technique_counts:
                 fencer_technique_counts[fencer_id] = {
                     'attack': 0, 'defense': 0, 'parry': 0, 'riposte': 0, 
                     'lunge': 0, 'advance': 0, 'retreat': 0, 'feint': 0,
-                    'movement': 0  # Add movement as an explicit category
+                    'movement': 0, 
+                    # Add CNN classifications
+                    'cnn_neutral': 0, 'cnn_attack': 0, 'cnn_defense': 0, 'cnn_lunge': 0
                 }
             
             # Check if any technique was detected in this frame
@@ -377,6 +518,12 @@ class SimplifiedFencingAnalyzer:
                 timeline_data.append((frame_idx, "movement", fencer_id))
                 technique_counts['movement'] += 1
                 fencer_technique_counts[fencer_id]['movement'] += 1
+            
+            # Add CNN classification counts
+            if cnn_pose_class != 'unknown':
+                cnn_key = f'cnn_{cnn_pose_class}'
+                if cnn_key in fencer_technique_counts[fencer_id]:
+                    fencer_technique_counts[fencer_id][cnn_key] += 1
         
         # Generate visualizations
         if save_visualization:
@@ -388,7 +535,8 @@ class SimplifiedFencingAnalyzer:
                 timeline_data=timeline_data,
                 frame_analyses=frame_analyses,
                 processed_frames=processed_frames,
-                output_dir=output_dir
+                output_dir=output_dir,
+                use_enhanced_detector=self.use_enhanced_detector
             )
             print("Generated visualizations:")
             for name, path in vis_paths.items():
@@ -421,7 +569,8 @@ class SimplifiedFencingAnalyzer:
                         'observations': analysis['observations'],
                         'sentence': analysis['sentence'],
                         'angles': {k: float(v) for k, v in analysis['angles'].items()},
-                        'box': analysis.get('box', [])
+                        'box': analysis.get('box', []),
+                        'pose_class': analysis.get('pose_class', 'unknown')
                     }
                     for analysis in results['frame_analyses']
                 ]
@@ -434,15 +583,26 @@ class SimplifiedFencingAnalyzer:
         print("\nTechnique Detection Summary:")
         for fencer_id, counts in sorted(fencer_technique_counts.items()):
             print(f"\nFencer {fencer_id}:")
-            for technique, count in sorted([(k, v) for k, v in counts.items() if v > 0 and k != 'movement'], 
-                                          key=lambda x: x[1], reverse=True):
-                print(f"  {technique}: {count} instances")
+            
+            # Print CNN classification counts first if enhanced detector was used
+            if self.use_enhanced_detector:
+                print("  CNN Classifications:")
+                for key in ['cnn_neutral', 'cnn_attack', 'cnn_defense', 'cnn_lunge']:
+                    if key in counts and counts[key] > 0:
+                        pose_name = key.replace('cnn_', '')
+                        print(f"    {pose_name}: {counts[key]} frames")
+            
+            # Print traditional technique detection counts
+            print("  Detected Techniques:")
+            for technique, count in sorted([(k, v) for k, v in counts.items() if v > 0 and k != 'movement' and not k.startswith('cnn_')], 
+                                         key=lambda x: x[1], reverse=True):
+                print(f"    {technique}: {count} instances")
             if counts['movement'] > 0:
-                print(f"  general movement: {counts['movement']} instances")
+                print(f"    general movement: {counts['movement']} instances")
         
         return results
     
-    def create_visualizations(self, video_name, technique_counts, fencer_technique_counts, timeline_data, frame_analyses, processed_frames, output_dir):
+    def create_visualizations(self, video_name, technique_counts, fencer_technique_counts, timeline_data, frame_analyses, processed_frames, output_dir, use_enhanced_detector):
         """
         Create visualizations for the analysis
         
@@ -454,6 +614,7 @@ class SimplifiedFencingAnalyzer:
             frame_analyses: List of frame analysis dictionaries
             processed_frames: List of processed frames with pose visualization
             output_dir: Directory to save visualizations
+            use_enhanced_detector: Boolean indicating whether to use the enhanced detector
             
         Returns:
             vis_paths: Dictionary of visualization paths
@@ -1117,40 +1278,40 @@ class SimplifiedFencingAnalyzer:
                 <h2>Technique Detection</h2>
                 <div class="two-column">
                     <div>
-                        <table>
-                            <tr>
-                                <th>Technique</th>
-                                <th>Count</th>
-                            </tr>
+                <table>
+                    <tr>
+                        <th>Technique</th>
+                        <th>Count</th>
+                    </tr>
         """
         
         # Add technique counts
         for technique, count in sorted(results['technique_counts'].items(), key=lambda x: x[1], reverse=True):
             if count > 0:
                 html_content += f"""
-                            <tr>
-                                <td>{technique}</td>
-                                <td>{count}</td>
-                            </tr>
-                """
+                    <tr>
+                        <td>{technique}</td>
+                        <td>{count}</td>
+                    </tr>
+            """
         
         html_content += """
-                        </table>
-                    </div>
+                </table>
+            </div>
                     <div>
         """
         
         # Add technique distribution visualization if it exists
         if os.path.exists(os.path.join(output_dir, f"{video_name}_pie.png")):
-            html_content += f"""
-                        <div class="visualization">
+                html_content += f"""
+                <div class="visualization">
                             <h3>Technique Distribution</h3>
                             <img src="{video_name}_pie.png" alt="Technique Distribution">
-                        </div>
-            """
+                </div>
+                """
         
         html_content += """
-                    </div>
+            </div>
                 </div>
             </div>
             
@@ -1163,34 +1324,34 @@ class SimplifiedFencingAnalyzer:
         for fencer_id in fencer_ids:
             html_content += f"""
                 <div class="fencer-section">
-                    <h3>Fencer {fencer_id}</h3>
+                <h3>Fencer {fencer_id}</h3>
                     
                     <div class="visualization">
                         <img src="{video_name}_fencer{fencer_id}_summary.png" alt="Fencer {fencer_id} Summary">
-                    </div>
-                    
+            </div>
+            
                     <h4>Technique Distribution</h4>
-                    <table>
-                        <tr>
+                <table>
+                    <tr>
                             <th>Technique</th>
                             <th>Count</th>
-                        </tr>
-            """
-            
+                    </tr>
+        """
+        
             # Add technique counts for this fencer
             counts = results['fencer_technique_counts'].get(str(fencer_id), {})
             if isinstance(counts, dict):  # Just to be safe
                 for technique, count in sorted([(k, v) for k, v in counts.items() if v > 0], 
                                             key=lambda x: x[1], reverse=True):
                     html_content += f"""
-                            <tr>
+                    <tr>
                                 <td>{technique}</td>
                                 <td>{count}</td>
-                            </tr>
-                    """
-            
-            html_content += """
-                    </table>
+                    </tr>
+                """
+        
+        html_content += """
+                </table>
                 </div>
             """
         

@@ -1,0 +1,7 @@
+names:
+  0: blade-guard
+  1: blade-tip
+  2: fencing-blade
+test: /Users/rdas/Projects/M3-SportCast/fencingdataset/Fencing Blade.v8i.yolov8-obb/test/images
+train: /Users/rdas/Projects/M3-SportCast/fencingdataset/Fencing Blade.v8i.yolov8-obb/train/images
+val: /Users/rdas/Projects/M3-SportCast/fencingdataset/Fencing Blade.v8i.yolov8-obb/valid/images
