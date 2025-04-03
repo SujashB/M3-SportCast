@@ -622,7 +622,11 @@ class SimplifiedFencingAnalyzer:
         vis_paths = {}
         
         # Define a consistent color map for techniques
-        all_techniques = ['attack', 'defense', 'parry', 'riposte', 'lunge', 'advance', 'retreat', 'feint', 'movement']
+        all_techniques = [
+            'attack', 'defense', 'parry', 'riposte', 'lunge', 'advance', 'retreat', 'feint', 'movement',
+            # Add CNN classification keys
+            'cnn_neutral', 'cnn_attack', 'cnn_defense', 'cnn_lunge'
+        ]
         technique_to_color = {
             tech: plt.cm.tab10(i % 10) for i, tech in enumerate(all_techniques)
         }
@@ -1293,7 +1297,7 @@ class SimplifiedFencingAnalyzer:
                         <td>{technique}</td>
                         <td>{count}</td>
                     </tr>
-            """
+                """
         
         html_content += """
                 </table>
@@ -1376,6 +1380,9 @@ def main():
     parser.add_argument("--no_viz", action="store_true", help="Disable visualization outputs")
     parser.add_argument("--manual_select", help="Optional comma-separated list of fencer IDs to manually select")
     parser.add_argument("--first_only", action="store_true", help="Only show the first frame with detected fencers and exit")
+    parser.add_argument("--pose_model", default="models/pose_classifier.pth", help="Path to trained CNN pose classifier model")
+    parser.add_argument("--sword_model", default="models/yolov8n_blade.pt", help="Path to trained sword detector model")
+    parser.add_argument("--use_enhanced", action="store_true", help="Use enhanced detector with CNN and sword detection")
     
     args = parser.parse_args()
     
@@ -1384,8 +1391,12 @@ def main():
         print(f"Error: Video file {args.video_path} not found!")
         return
     
-    # Initialize analyzer
-    analyzer = SimplifiedFencingAnalyzer()
+    # Initialize analyzer with our trained models
+    analyzer = SimplifiedFencingAnalyzer(
+        pose_model_path=args.pose_model if args.use_enhanced else None,
+        sword_model_path=args.sword_model if args.use_enhanced else None,
+        use_enhanced_detector=args.use_enhanced
+    )
     
     # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
@@ -1396,7 +1407,7 @@ def main():
         print("\nFirst frame analysis complete!")
         print(f"Annotated frame saved to: {annotated_frame_path}")
         print("\nTo analyze specific fencers, run the command again with --manual_select followed by comma-separated fencer IDs")
-        print("Example: python advanced_fencing_analyzer.py video.mp4 --manual_select 0,1")
+        print("Example: python advanced_fencing_analyzer.py video.mp4 --manual_select 0,1 --use_enhanced --pose_model models/pose_classifier.pth --sword_model models/yolov8n_blade.pt")
         return
     
     # Show first frame for selection if manual select is specified

@@ -63,13 +63,13 @@
             <div class="header">
                 <h1>Fencing Pose Analysis Report</h1>
                 <p>Video: fencing_demo_video.mp4</p>
-                <p>Analysis Date: 2025-04-02 18:56:03</p>
+                <p>Analysis Date: 2025-04-02 21:51:55</p>
             </div>
             
             <div class="section">
                 <h2>Summary</h2>
                 <p>This report presents a pose analysis of fencing techniques and movements.</p>
-                <p>Number of analyzed frames: 112</p>
+                <p>Number of analyzed frames: 18</p>
                 
                 <div class="visualization">
                     <h3>Analysis Summary</h3>
@@ -81,27 +81,37 @@
                 <h2>Technique Detection</h2>
                 <div class="two-column">
                     <div>
-                        <table>
-                            <tr>
-                                <th>Technique</th>
-                                <th>Count</th>
-                            </tr>
+                <table>
+                    <tr>
+                        <th>Technique</th>
+                        <th>Count</th>
+                    </tr>
         
-                            <tr>
-                                <td>movement</td>
-                                <td>112</td>
-                            </tr>
+                    <tr>
+                        <td>attack</td>
+                        <td>13</td>
+                    </tr>
                 
-                        </table>
-                    </div>
+                    <tr>
+                        <td>movement</td>
+                        <td>4</td>
+                    </tr>
+                
+                    <tr>
+                        <td>lunge</td>
+                        <td>1</td>
+                    </tr>
+                
+                </table>
+            </div>
                     <div>
         
-                        <div class="visualization">
+                <div class="visualization">
                             <h3>Technique Distribution</h3>
                             <img src="fencing_demo_video_pie.png" alt="Technique Distribution">
-                        </div>
-            
-                    </div>
+                </div>
+                
+            </div>
                 </div>
             </div>
             
@@ -109,37 +119,34 @@
                 <h2>Per-Fencer Analysis</h2>
         
                 <div class="fencer-section">
-                    <h3>Fencer 1</h3>
+                <h3>Fencer 0</h3>
+                    
+                    <div class="visualization">
+                        <img src="fencing_demo_video_fencer0_summary.png" alt="Fencer 0 Summary">
+            </div>
+            
+                    <h4>Technique Distribution</h4>
+                <table>
+                    <tr>
+                            <th>Technique</th>
+                            <th>Count</th>
+                    </tr>
+        
+                <div class="fencer-section">
+                <h3>Fencer 1</h3>
                     
                     <div class="visualization">
                         <img src="fencing_demo_video_fencer1_summary.png" alt="Fencer 1 Summary">
-                    </div>
-                    
+            </div>
+            
                     <h4>Technique Distribution</h4>
-                    <table>
-                        <tr>
+                <table>
+                    <tr>
                             <th>Technique</th>
                             <th>Count</th>
-                        </tr>
-            
-                    </table>
-                </div>
-            
-                <div class="fencer-section">
-                    <h3>Fencer 2</h3>
-                    
-                    <div class="visualization">
-                        <img src="fencing_demo_video_fencer2_summary.png" alt="Fencer 2 Summary">
-                    </div>
-                    
-                    <h4>Technique Distribution</h4>
-                    <table>
-                        <tr>
-                            <th>Technique</th>
-                            <th>Count</th>
-                        </tr>
-            
-                    </table>
+                    </tr>
+        
+                </table>
                 </div>
             
             </div>
