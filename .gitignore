@@ -1,6 +1,74 @@
-venv/
-*.so
-*.dylib
+# Python
 __pycache__/
-*.pyc
-.DS_Store 
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+venv/
+ENV/
+env/
+
+# Model files
+models/*.pth
+models/*.pt
+models/retrained/
+models/*.onnx
+models/*.bin
+
+# Dataset files
+fencingdataset/videos/
+fencingdataset/images/
+fencingdataset/labels/
+fencingdataset/organized_videos/
+fencingdataset/Fencing Blade.v8i.yolov8-obb/
+fencingdataset/stuff.v5i.yolov8-obb/
+
+# Result and output directories
+results*/
+output*/
+*_output/
+
+# Video and image files
+*.mp4
+*.jpg
+*.jpeg
+*.png
+*.avi
+*.mov
+*.gif
+
+# Specific large files
+*.weights
+*.onnx
+*.pt
+*.pth
+
+# OS specific files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Logs
+*.log
+logs/ 
