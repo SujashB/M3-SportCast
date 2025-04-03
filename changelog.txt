@@ -1,0 +1,38 @@
+# M3-SportCast Fencing Analysis System Changelog
+
+## [2023-10-27] Major Update
+
+### Added
+- Created `videomae_model.py` implementing a 3D ConvNet + Transformer architecture for temporal analysis of fencing techniques
+  - Implemented PatchEmbed3D, Attention, FeedForward, and TransformerBlock classes
+  - Added MaskedAutoencoder for video understanding
+  - Created FencingTemporalModel wrapper class for fencing technique classification
+
+- Added `temporal_segmentation.py` module for video segmentation via stroke detection
+  - Implemented MotionAnalyzer for computing frame differences and optical flow
+  - Added StrokeDetector for identifying fencing actions in video frames
+  - Created TemporalSegmentation class for managing the segmentation process
+
+- Implemented `fencing_knowledge_graph.py` with tactical knowledge graph
+  - Created FencingKnowledgeGraph class using networkx
+  - Added core techniques and transitions with probabilities
+  - Implemented methods for technique prediction and graph visualization
+  - Added FencingTacticalAnalyzer class for generating coaching feedback
+
+- Created `integrated_fencing_analyzer.py` to unify all components
+  - Implemented frame-by-frame processing pipeline
+  - Added video analysis with temporal segmentation, technique classification, and coaching feedback
+  - Created visualization system with technique detection and coaching feedback overlay
+  - Added command line interface for processing videos
+
+### Improved
+- Enhanced fencer detection with better tracking across frames
+- Improved sword detector model with more robust performance
+- Added coaching feedback visualization in output videos
+- Created detailed analysis summaries with technique statistics
+
+### Fixed
+- Fixed indentation errors in `advanced_fencing_analyzer.py` 
+- Resolved issues with training in fencing dataset (increased to 25 epochs)
+- Improved fencer blade detection accuracy
+- Fixed visualization rendering in output videos

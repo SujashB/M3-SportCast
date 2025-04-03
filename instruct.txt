@@ -1,0 +1,89 @@
+Looking at the image you shared and analyzing it against our current implementation, I can see the key differences in approach for better lunge detection. Here's a technical report to guide improvements:
+
+# Technical Report: Enhancing Fencing Technique Detection
+
+## Analysis of VISTec Approach vs. Current Implementation
+
+The image shows a sophisticated multi-stage pipeline for sports technique detection that our current implementation could benefit from:
+
+1. **Video Temporal Segmentation**:
+   - VISTec uses stroke detection to segment videos by technique timestamps
+   - Our system lacks proper temporal segmentation and relies primarily on frame-by-frame analysis
+
+2. **Feature Extraction Architecture**:
+   - VISTec employs a T/2 slice methodology creating spatial+temporal feature modeling 
+   - They use 3D ConvNet followed by transformer architectures for both spatial and temporal modeling
+   - Our CNN classifier is simpler and lacks the temporal context modeling
+
+3. **Tactical Knowledge Modeling**:
+   - VISTec incorporates domain-specific knowledge using graph networks
+   - Our system has rudimentary rule-based analysis but lacks proper knowledge graph implementation
+
+## Recommended Improvements
+
+### 1. Architecture Redesign
+
+```
+Video Input
+  ↓
+Temporal Segmentation (by detected lunge/technique timestamps)
+  ↓
+3D Feature Extractor (16-frame sliding window with 3D ConvNet)
+  ↓
+Dual-path Analysis:
+  ├→ Spatial Feature Transformer (for pose understanding)
+  └→ Temporal Feature Transformer (for sequence understanding)
+     ↓
+Fencing Knowledge Graph Integration
+  ↓
+Multi-class Technique Classification
+```
+
+### 2. Essential Files to Modify
+
+- **advanced_fencing_analyzer.py**: Main integration script (keep as entry point)
+- **enhanced_fencer_detector.py**: Add temporal segmentation capabilities
+- **fencing_cnn.py**: Completely redesign to implement 3D ConvNet + transformer architecture
+
+### 3. Implementation Plan
+
+1. **Dataset Preparation Improvements**:
+   - Collect more diverse examples of lunges and other techniques
+   - Label temporal segments, not just individual frames
+   - Include examples from different angles and lighting conditions
+
+2. **Model Architecture**:
+   - Implement 3D ConvNet accepting 16-frame sequences (W/16×H/16×16)
+   - Add transformer layers for both spatial and temporal feature modeling
+   - Output dimension should be 196 features per sequence
+
+3. **Training Process**:
+   - Use contrastive learning to better distinguish between similar techniques
+   - Implement curriculum learning (easier examples first, then harder ones)
+   - Use mixed precision training for efficiency
+
+## Key Files and Their Roles
+
+- **advanced_fencing_analyzer.py**: Main orchestrator that coordinates all components
+- **enhanced_fencer_detector.py**: Handles detection and tracking, needs temporal awareness
+- **fencing_cnn.py**: Model architecture, needs complete rebuild based on VISTec approach
+- **pose_estimation_helper.py**: Keypoint detection, useful for traditional analysis
+- **train_fencing_cnn.py**: Training pipeline, needs overhaul for new architecture
+
+## Testing Videos
+
+The following videos should be used for validation in order of increasing complexity:
+1. **evenevenmorecropped (1).mp4**: Single fencer, clear movements
+2. **fencing_demo_video.mp4**: Demonstration with basic techniques  
+3. **cropped_bout.mp4**: Two-fencer interaction for more complex scenarios
+
+## Metrics to Track
+
+1. Lunge detection accuracy (precision/recall)
+2. Temporal localization accuracy (IoU of detected vs ground truth technique segments)
+3. Classification accuracy for different techniques
+4. Tracking stability during occlusions and quick movements
+
+---
+
+This report outlines the key architectural changes needed to improve our system based on the VISTec approach. The most significant change is moving from a frame-by-frame analysis to a segment-based approach with transformers for both spatial and temporal understanding. This will require substantial reworking of the core ML components but should result in much more accurate and robust technique detection.

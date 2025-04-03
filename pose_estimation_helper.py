@@ -122,19 +122,50 @@ class PoseEstimator:
         
         return np.array(keypoints)
     
-    def draw_pose(self, frame, keypoints):
-        """Draw pose keypoints on frame"""
+    def draw_pose(self, frame, keypoints, bounding_box=None):
+        """
+        Draw pose keypoints on frame, optionally clipped to a bounding box
+        
+        Args:
+            frame: Input frame to draw on
+            keypoints: Detected keypoints from estimate_pose
+            bounding_box: Optional [x1, y1, x2, y2] to clip pose inside
+            
+        Returns:
+            output_frame: Frame with drawn pose
+        """
         if keypoints is None:
             return frame
         
         output_frame = frame.copy()
         
+        # Define the bounding box for clipping if provided
+        clip_x1, clip_y1, clip_x2, clip_y2 = None, None, None, None
+        if bounding_box is not None:
+            clip_x1, clip_y1, clip_x2, clip_y2 = map(int, bounding_box)
+            
+            # Add a small margin inside the box
+            margin = 2
+            clip_x1 += margin
+            clip_y1 += margin
+            clip_x2 -= margin
+            clip_y2 -= margin
+        
         if self.use_mmpose:
             # Draw keypoints for mmpose
             for kp in keypoints:
                 x, y, conf = kp
-                if conf > 0.5:
-                    cv2.circle(output_frame, (int(x), int(y)), 5, (0, 255, 0), -1)
+                
+                # Skip low confidence points
+                if conf <= 0.5:
+                    continue
+                    
+                # Clip to bounding box if provided
+                if bounding_box is not None:
+                    x = max(clip_x1, min(clip_x2, int(x)))
+                    y = max(clip_y1, min(clip_y2, int(y)))
+                
+                cv2.circle(output_frame, (int(x), int(y)), 5, (0, 255, 0), -1)
             
             # Draw connections for important limbs
             limbs = [
@@ -147,28 +178,36 @@ class PoseEstimator:
             ]
             
             for limb in limbs:
-                pt1, pt2 = limbs
-                if keypoints[pt1, 2] > 0.5 and keypoints[pt2, 2] > 0.5:
-                    cv2.line(output_frame, 
-                             (int(keypoints[pt1, 0]), int(keypoints[pt1, 1])),
-                             (int(keypoints[pt2, 0]), int(keypoints[pt2, 1])),
-                             (0, 255, 255), 2)
+                pt1_idx, pt2_idx = limb
+                if keypoints[pt1_idx, 2] > 0.5 and keypoints[pt2_idx, 2] > 0.5:
+                    pt1_x, pt1_y = int(keypoints[pt1_idx, 0]), int(keypoints[pt1_idx, 1])
+                    pt2_x, pt2_y = int(keypoints[pt2_idx, 0]), int(keypoints[pt2_idx, 1])
+                    
+                    # Clip points to bounding box if provided
+                    if bounding_box is not None:
+                        pt1_x = max(clip_x1, min(clip_x2, pt1_x))
+                        pt1_y = max(clip_y1, min(clip_y2, pt1_y))
+                        pt2_x = max(clip_x1, min(clip_x2, pt2_x))
+                        pt2_y = max(clip_y1, min(clip_y2, pt2_y))
+                    
+                    cv2.line(output_frame, (pt1_x, pt1_y), (pt2_x, pt2_y), (0, 255, 255), 2)
         else:
-            # Draw pose using mediapipe's built-in function
-            mp_drawing = mp.solutions.drawing_utils
-            mp_pose = mp.solutions.pose
-            
-            # Simplified drawing approach
+            # Draw with mediapipe approach
             height, width, _ = frame.shape
             
             # Draw keypoints directly
             for idx, (x, y, conf) in enumerate(keypoints):
                 if conf > 0.5:
+                    # Clip to bounding box if provided
+                    if bounding_box is not None:
+                        x = max(clip_x1, min(clip_x2, int(x)))
+                        y = max(clip_y1, min(clip_y2, int(y)))
+                    
                     # Draw circle for each keypoint
                     cv2.circle(
                         output_frame, 
                         (int(x), int(y)), 
-                        5, (0, 255, 0), -1
+                        3, (0, 255, 0), -1
                     )
             
             # Draw skeleton with manually defined connections
@@ -188,11 +227,22 @@ class PoseEstimator:
                 idx1, idx2 = connection
                 if (idx1 < len(keypoints) and idx2 < len(keypoints) and
                     keypoints[idx1, 2] > 0.5 and keypoints[idx2, 2] > 0.5):
+                    
+                    x1, y1 = int(keypoints[idx1, 0]), int(keypoints[idx1, 1])
+                    x2, y2 = int(keypoints[idx2, 0]), int(keypoints[idx2, 1])
+                    
+                    # Clip to bounding box if provided
+                    if bounding_box is not None:
+                        x1 = max(clip_x1, min(clip_x2, x1))
+                        y1 = max(clip_y1, min(clip_y2, y1))
+                        x2 = max(clip_x1, min(clip_x2, x2))
+                        y2 = max(clip_y1, min(clip_y2, y2))
+                    
                     cv2.line(
                         output_frame,
-                        (int(keypoints[idx1, 0]), int(keypoints[idx1, 1])),
-                        (int(keypoints[idx2, 0]), int(keypoints[idx2, 1])),
-                        (0, 255, 255), 2
+                        (x1, y1),
+                        (x2, y2),
+                        (0, 255, 255), 1
                     )
         
         return output_frame
@@ -466,7 +516,7 @@ def process_video_with_pose(video_path, output_path=None, save_frames=False):
                         sentence = generate_descriptive_sentence(observations)
                         
                         # Draw pose on frame
-                        annotated_frame = pose_estimator.draw_pose(frame, keypoints)
+                        annotated_frame = pose_estimator.draw_pose(frame, keypoints, box)
                         
                         # Add text with observations and fencer ID
                         y_offset = 30

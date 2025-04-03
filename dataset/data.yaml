@@ -1,6 +1,0 @@
-names:
-  0: fencer
-nc: 1
-path: dataset
-train: images/train
-val: images/val

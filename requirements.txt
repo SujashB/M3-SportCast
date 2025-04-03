@@ -1,18 +1,15 @@
-numpy>=1.20.0
-opencv-python>=4.5.4
-matplotlib>=3.4.3
-seaborn>=0.11.2
-ultralytics>=8.0.0
-mediapipe>=0.8.9
-torch>=1.10.0
-torchvision>=0.11.0
-tqdm>=4.62.0
-transformers>=4.18.0
-neo4j>=4.4.0
-scikit-learn>=1.0.0
-networkx>=2.6.0
-python-dotenv>=0.20.0
-pillow>=9.0.0
+numpy==1.24.3
+opencv-python==4.8.0.76
+torch==2.0.1
+torchvision==0.15.2
+tqdm==4.66.1
+matplotlib==3.7.2
+seaborn==0.12.2
+scikit-learn==1.3.0
+ultralytics==8.0.20
+Pillow==10.0.0
+mediapipe==0.10.3
+pandas==2.0.3
 # Optional dependencies for segmentation
 segment-anything>=1.0  # Only if using SAM model
 pycocotools>=2.0.0     # For mask operations 

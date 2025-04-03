@@ -1,0 +1,1 @@
+{"idx_to_class": {"0": "incremental_speed", "1": "rapid", "2": "step_backward", "3": "with_hold", "4": "step_forward", "5": "jump_slide"}, "class_to_idx": {"incremental_speed": 0, "rapid": 1, "step_backward": 2, "with_hold": 3, "step_forward": 4, "jump_slide": 5}}

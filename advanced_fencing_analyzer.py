@@ -20,7 +20,7 @@ class SimplifiedFencingAnalyzer:
     """
     Simplified fencing analysis system that focuses on pose estimation
     """
-    def __init__(self, pose_model_path=None, sword_model_path=None, use_enhanced_detector=True):
+    def __init__(self, pose_model_path=None, sword_model_path=None, use_enhanced_detector=True, bout_mode=True):
         """Initialize the analyzer with pose estimation capability"""
         print("Initializing Simplified Fencing Analyzer...")
         
@@ -28,6 +28,7 @@ class SimplifiedFencingAnalyzer:
         self.use_enhanced_detector = use_enhanced_detector
         self.pose_model_path = pose_model_path
         self.sword_model_path = sword_model_path
+        self.bout_mode = bout_mode
         
         # Initialize pose estimator
         print("Loading pose estimator...")
@@ -45,7 +46,8 @@ class SimplifiedFencingAnalyzer:
             if self.use_enhanced_detector:
                 self.fencer_detector = EnhancedFencerDetector(
                     pose_model_path=self.pose_model_path,
-                    sword_model_path=self.sword_model_path
+                    sword_model_path=self.sword_model_path,
+                    bout_mode=self.bout_mode
                 )
                 print("Enhanced fencer detector initialized with CNN pose classifier and sword detector")
             else:
@@ -309,7 +311,23 @@ class SimplifiedFencingAnalyzer:
                                 base_sentence = generate_descriptive_sentence(observations)
                                 sentence = f"{base_sentence} CNN classifies as: {pose_class}"
                                 
-                                # Draw pose on frame
+                                # If there's a lunge in the traditional analysis, update the pose_class to reflect the lunge
+                                # regardless of what the CNN classified
+                                if 'lunge' in base_sentence.lower():
+                                    print(f"Frame {frame_count}: Traditional analysis detected lunge for fencer {fencer_id}")
+                                    pose_class = 'lunge'
+                                    # Update the item in the tracked_items list to make sure the visualization shows it
+                                    for i, tracked_item in enumerate(tracked_items):
+                                        if tracked_item['fencer_id'] == fencer_id:
+                                            tracked_items[i]['pose_class'] = 'lunge'
+                                
+                                # Draw pose on frame with the updated classification
+                                # Redraw the frame visualization to show the updated pose
+                                annotated_frame = self.fencer_detector.draw_enhanced_detections(
+                                    frame.copy(), tracked_items, sword_detections
+                                )
+                                
+                                # Add our pose visualization on top
                                 annotated_frame = self.pose_estimator.draw_pose(annotated_frame, keypoints)
                                 
                                 # Store analysis results
@@ -503,9 +521,19 @@ class SimplifiedFencingAnalyzer:
                     'cnn_neutral': 0, 'cnn_attack': 0, 'cnn_defense': 0, 'cnn_lunge': 0
                 }
             
+            # Check for lunges first - they are a priority technique
+            if 'lunge' in desc_lower or cnn_pose_class == 'lunge':
+                timeline_data.append((frame_idx, 'lunge', fencer_id))
+                technique_counts['lunge'] += 1
+                fencer_technique_counts[fencer_id]['lunge'] += 1
+                # Add CNN classification too
+                if cnn_pose_class == 'lunge':
+                    fencer_technique_counts[fencer_id]['cnn_lunge'] += 1
+                continue
+            
             # Check if any technique was detected in this frame
             technique_detected = False
-            for technique in [t for t in technique_counts.keys() if t != 'movement']:
+            for technique in [t for t in technique_counts.keys() if t != 'movement' and t != 'lunge']:
                 if technique in desc_lower:
                     timeline_data.append((frame_idx, technique, fencer_id))
                     technique_counts[technique] += 1
@@ -520,7 +548,7 @@ class SimplifiedFencingAnalyzer:
                 fencer_technique_counts[fencer_id]['movement'] += 1
             
             # Add CNN classification counts
-            if cnn_pose_class != 'unknown':
+            if cnn_pose_class != 'unknown' and cnn_pose_class != 'lunge':  # We already counted lunges
                 cnn_key = f'cnn_{cnn_pose_class}'
                 if cnn_key in fencer_technique_counts[fencer_id]:
                     fencer_technique_counts[fencer_id][cnn_key] += 1
@@ -1185,191 +1213,6 @@ class SimplifiedFencingAnalyzer:
             vis_paths[f'fencer{fencer_id}_summary'] = fencer_summary_path
         
         return vis_paths
-    
-    def generate_report(self, results, output_path):
-        """
-        Generate a simple HTML report from pose analysis results
-        
-        Args:
-            results: Analysis results dictionary
-            output_path: Path to save the HTML report
-        """
-        # Get video name
-        video_name = os.path.splitext(os.path.basename(results['video_path']))[0]
-        output_dir = os.path.dirname(output_path)
-        
-        # Create HTML content
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Fencing Pose Analysis: {video_name}</title>
-            <style>
-                body {{
-                    font-family: Arial, sans-serif;
-                    line-height: 1.6;
-                    max-width: 1200px;
-                    margin: 0 auto;
-                    padding: 20px;
-                }}
-                .header {{
-                    background-color: #f5f5f5;
-                    padding: 20px;
-                    border-radius: 5px;
-                    margin-bottom: 20px;
-                }}
-                .section {{
-                    margin-bottom: 30px;
-                    border-bottom: 1px solid #ddd;
-                    padding-bottom: 20px;
-                }}
-                table {{
-                    border-collapse: collapse;
-                    width: 100%;
-                }}
-                th, td {{
-                    border: 1px solid #ddd;
-                    padding: 8px;
-                    text-align: left;
-                }}
-                th {{
-                    background-color: #f2f2f2;
-                }}
-                .visualization {{
-                    margin: 20px 0;
-                    max-width: 100%;
-                }}
-                .visualization img {{
-                    max-width: 100%;
-                    height: auto;
-                }}
-                .two-column {{
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 20px;
-                }}
-                .two-column > div {{
-                    flex: 1;
-                    min-width: 300px;
-                }}
-                .fencer-section {{
-                    background-color: #f9f9f9;
-                    border-radius: 5px;
-                    padding: 15px;
-                    margin-bottom: 20px;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h1>Fencing Pose Analysis Report</h1>
-                <p>Video: {results['video_path']}</p>
-                <p>Analysis Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-            </div>
-            
-            <div class="section">
-                <h2>Summary</h2>
-                <p>This report presents a pose analysis of fencing techniques and movements.</p>
-                <p>Number of analyzed frames: {len(results['frame_analyses'])}</p>
-                
-                <div class="visualization">
-                    <h3>Analysis Summary</h3>
-                    <img src="{video_name}_summary.png" alt="Analysis Summary">
-                </div>
-            </div>
-            
-            <div class="section">
-                <h2>Technique Detection</h2>
-                <div class="two-column">
-                    <div>
-                <table>
-                    <tr>
-                        <th>Technique</th>
-                        <th>Count</th>
-                    </tr>
-        """
-        
-        # Add technique counts
-        for technique, count in sorted(results['technique_counts'].items(), key=lambda x: x[1], reverse=True):
-            if count > 0:
-                html_content += f"""
-                    <tr>
-                        <td>{technique}</td>
-                        <td>{count}</td>
-                    </tr>
-                """
-        
-        html_content += """
-                </table>
-            </div>
-                    <div>
-        """
-        
-        # Add technique distribution visualization if it exists
-        if os.path.exists(os.path.join(output_dir, f"{video_name}_pie.png")):
-                html_content += f"""
-                <div class="visualization">
-                            <h3>Technique Distribution</h3>
-                            <img src="{video_name}_pie.png" alt="Technique Distribution">
-                </div>
-                """
-        
-        html_content += """
-            </div>
-                </div>
-            </div>
-            
-            <div class="section">
-                <h2>Per-Fencer Analysis</h2>
-        """
-        
-        # Add per-fencer sections
-        fencer_ids = sorted(results.get('fencer_technique_counts', {}).keys())
-        for fencer_id in fencer_ids:
-            html_content += f"""
-                <div class="fencer-section">
-                <h3>Fencer {fencer_id}</h3>
-                    
-                    <div class="visualization">
-                        <img src="{video_name}_fencer{fencer_id}_summary.png" alt="Fencer {fencer_id} Summary">
-            </div>
-            
-                    <h4>Technique Distribution</h4>
-                <table>
-                    <tr>
-                            <th>Technique</th>
-                            <th>Count</th>
-                    </tr>
-        """
-        
-            # Add technique counts for this fencer
-            counts = results['fencer_technique_counts'].get(str(fencer_id), {})
-            if isinstance(counts, dict):  # Just to be safe
-                for technique, count in sorted([(k, v) for k, v in counts.items() if v > 0], 
-                                            key=lambda x: x[1], reverse=True):
-                    html_content += f"""
-                    <tr>
-                                <td>{technique}</td>
-                                <td>{count}</td>
-                    </tr>
-                """
-        
-        html_content += """
-                </table>
-                </div>
-            """
-        
-        html_content += """
-            </div>
-        </body>
-        </html>
-        """
-        
-        # Write HTML to file
-        with open(output_path, 'w') as f:
-            f.write(html_content)
-        
-        print(f"Report generated at {output_path}")
 
 def main():
     # Parse command line arguments
@@ -1383,6 +1226,7 @@ def main():
     parser.add_argument("--pose_model", default="models/pose_classifier.pth", help="Path to trained CNN pose classifier model")
     parser.add_argument("--sword_model", default="models/yolov8n_blade.pt", help="Path to trained sword detector model")
     parser.add_argument("--use_enhanced", action="store_true", help="Use enhanced detector with CNN and sword detection")
+    parser.add_argument("--bout_mode", action="store_true", help="Optimize for detecting exactly 2 fencers (for bouts)")
     
     args = parser.parse_args()
     
@@ -1395,7 +1239,8 @@ def main():
     analyzer = SimplifiedFencingAnalyzer(
         pose_model_path=args.pose_model if args.use_enhanced else None,
         sword_model_path=args.sword_model if args.use_enhanced else None,
-        use_enhanced_detector=args.use_enhanced
+        use_enhanced_detector=args.use_enhanced,
+        bout_mode=args.bout_mode
     )
     
     # Create output directory

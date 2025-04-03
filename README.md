@@ -1,117 +1,230 @@
-# M3-SportCast: Fencing Analytics
+# M3-SportCast Fencing Analysis System
 
-A computer vision system for analyzing fencing movements and techniques using pose estimation and tracking.
+This project provides an AI-powered fencing bout analysis system that:
+1. Detects fencers using YOLOv8
+2. Tracks fencers across frames
+3. Classifies fencer poses (neutral, attack, defense, lunge) using a CNN
+4. Detects fencing blades and sword parts
+5. Generates comprehensive analysis and visualization
 
-## Features
+## Key Features
 
-- Detect and track fencers in videos
-- Analyze pose and movement patterns
-- Identify fencing techniques and movements
-- Generate visualizations and reports
-- Support for multiple fencers in the same frame
+- **Fencer Detection**: Automatically identifies fencers in videos using YOLOv8
+- **Multi-Fencer Tracking**: Maintains fencer identity across frames using SORT tracking
+- **Pose Classification**: CNN-based classification of fencing poses (neutral, attack, defense, lunge)
+- **Enhanced Lunge Detection**: Special highlighting and effects for lunge detection
+- **Blade Tracking**: Identification of fencing blades and their parts
+- **Comprehensive Analysis**: Statistics on techniques, poses, and movements
+- **Bout Mode**: Optimized detection for two-fencer competitive bouts
+
+## Components
+
+The system consists of the following main components:
+
+- **Advanced Fencing Analyzer**: Comprehensive analysis with fencer tracking, pose estimation, and sword detection
+- **Enhanced Fencer Detector**: YOLOv8-based detector with CNN pose classification and sword detection
+- **Fencing CNN**: CNN-based pose classifier for fencing poses
+- **Pose Estimation Helper**: Provides skeletal keypoint detection for traditional pose analysis
+- **SORT Tracking**: Maintains fencer identity across frames
 
 ## Installation
 
-1. Clone the repository:
-```bash
-git clone https://github.com/SujashB/M3-SportCast.git
-cd M3-SportCast
-```
+1. Install required packages:
 
-2. Create a virtual environment and activate it:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows, use: venv\Scripts\activate
-```
-
-3. Install the required dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-## Usage
+2. Make sure you have the following models in the `models` directory:
+   - `pose_classifier.pth`: CNN model for pose classification
+   - `yolov8n_blade.pt`: YOLOv8 model for sword detection
+   - `yolov8n.pt`: Base YOLOv8 model (will be downloaded automatically if missing)
 
-### Basic Usage
+## Quick Start
 
-Run the fencing analyzer on a video file:
+The system includes two easy-to-use scripts:
 
+1. First, identify fencers in your video:
 ```bash
-python advanced_fencing_analyzer.py path/to/your/video.mp4
+./identify_fencers.sh fencing_demo_video.mp4
 ```
 
-This will process the video and generate visualization results in the `results` directory.
-
-### Manual Fencer Selection
-
-To first see the detected fencers in the first frame:
-
+2. Then analyze the video with specific fencer IDs:
 ```bash
-python advanced_fencing_analyzer.py path/to/your/video.mp4 --first_only
+./analyze_fencing.sh fencing_demo_video.mp4 0,1 150
 ```
 
-Then select specific fencers to analyze (using their IDs from the first frame):
+Where:
+- `fencing_demo_video.mp4` is your video file
+- `0,1` are the fencer IDs to track (from the identification step)
+- `150` is the maximum number of frames to process (optional)
+
+## Detailed Usage
+
+### Using the Identify Fencers Script
 
 ```bash
-python advanced_fencing_analyzer.py path/to/your/video.mp4 --manual_select 0,1
+./identify_fencers.sh <video_file>
 ```
 
-### Additional Options
+This script will:
+1. Process only the first frame of the video
+2. Show the detected fencers with their ID numbers
+3. Save an annotated frame to the results directory
+4. Help you determine which fencer IDs to use for full analysis
 
-- `--output_dir`: Specify a custom output directory (default: "results")
-- `--max_frames`: Limit the number of frames to process
-- `--no_viz`: Disable visualization outputs
-- `--first_only`: Only show the first frame with detected fencers and exit
+Example:
+```bash
+./identify_fencers.sh fencing_demo_video.mp4
+```
 
-## Output
-
-The analyzer generates the following files:
-
-- JSON analysis data with pose information and technique detection
-- Visualization images (pie charts, bar charts, timelines)
-- Summary visualizations for each detected fencer
-- HTML report with all analysis results
-- Video with pose visualization and bounding boxes
-
-## Examples
+### Using the Analysis Script
 
 ```bash
-# Analyze only the first 100 frames
-python advanced_fencing_analyzer.py fencing_video.mp4 --max_frames 100
-
-# Save results to a custom directory
-python advanced_fencing_analyzer.py fencing_video.mp4 --output_dir my_results
-
-# First check which fencers are detected
-python advanced_fencing_analyzer.py fencing_video.mp4 --first_only
-
-# Then analyze specific fencers
-python advanced_fencing_analyzer.py fencing_video.mp4 --manual_select 0,1
+./analyze_fencing.sh <video_file> [fencer_ids] [max_frames]
 ```
 
-## Implementation
+Parameters:
+- `video_file`: Path to the fencing video (required)
+- `fencer_ids`: Comma-separated list of fencer IDs to track (optional)
+- `max_frames`: Maximum number of frames to process (optional)
 
-The system integrates multiple Python modules:
-- `advanced_fencing_analyzer.py`: Main integration script
-- `simple_fencing_analyzer.py`: Core VideoMAE and pose analysis
-- `sequence_analysis.py`: LSTM-based sequence processing
-- `knowledge_graph_rules.py`: Logical rules and reasoning
-- `fencer_segmentation.py`: Segmentation and tracking
-- `data_visualization.py`: Comprehensive visualization tools
-- `pose_estimation_helper.py`: MediaPipe-based pose analysis
+Example:
+```bash
+./analyze_fencing.sh cropped_bout.mp4 0,1 200
+```
 
-## Results
+### Using the Full-Featured Script
 
-When analyzing fencing videos, the system identifies:
-- Individual techniques (attack, defense, parry, riposte, etc.)
-- Sequences and patterns of techniques
-- Fencer positions and movements
-- Potential hit moments
-- Signature sequences used by each fencer
+For more advanced options, use the full-featured script:
 
-## Future Work
+```bash
+./run_fencing_analyzer.sh -v <video_file> [options]
+```
 
-1. Real-time analysis for live fencing matches
-2. Training on a larger dataset of labeled fencing videos
-3. Integration with competition scoring systems
-4. Multi-camera support for 3D analysis
-5. Tactical pattern recognition and suggestion system
+Options:
+- `-v, --video`: Video file to analyze (required)
+- `-f, --fencers`: Comma-separated list of fencer IDs to track (e.g. '0,1')
+- `-m, --max-frames`: Maximum number of frames to process (default: all)
+- `-i, --identify`: Only show the first frame to identify fencers and exit
+- `-b, --bout-mode`: Optimize for detecting exactly 2 fencers (for bouts)
+- `-p, --pose-model`: Path to CNN pose classifier model
+- `-s, --sword-model`: Path to sword detector model
+- `-o, --output-dir`: Directory to save results
+- `-e, --no-enhanced`: Disable enhanced detection (use basic detection only)
+- `-h, --help`: Show help message
+
+Example:
+```bash
+./run_fencing_analyzer.sh -v fencing_demo_video.mp4 -f 0,1 -m 100 -b -o my_results
+```
+
+### Using the Python API
+
+You can also use the Python API directly for more programmatic control:
+
+```python
+from advanced_fencing_analyzer import SimplifiedFencingAnalyzer
+
+# Initialize the analyzer
+analyzer = SimplifiedFencingAnalyzer(
+    pose_model_path="models/pose_classifier.pth",
+    sword_model_path="models/yolov8n_blade.pt",
+    use_enhanced_detector=True,
+    bout_mode=True
+)
+
+# Analyze a video
+results = analyzer.analyze_video(
+    video_path="fencing_demo_video.mp4",
+    manual_select="0,1",  # Optional: Specify fencer IDs to track
+    max_frames=100        # Optional: Limit number of frames to process
+)
+```
+
+## Output Files and Results
+
+The system generates the following outputs in the `results` directory:
+
+1. **Annotated Video**: `<video_name>_pose_analysis.mp4`
+   - Shows fencers with bounding boxes, pose classifications, and sword detections
+   - Enhanced visual effects for lunges (glow, thicker borders, directional arrows)
+
+2. **HTML Report**: `<video_name>_pose_report.html`
+   - Comprehensive analysis with visualizations and statistics
+   - Interactive analysis of the fencing performance
+
+3. **JSON Data**: `<video_name>_pose_analysis.json`
+   - Raw analysis data for further processing
+   - Contains frame-by-frame pose and technique information
+
+4. **Visualizations**:
+   - Pose distribution pie charts
+   - Technique frequency bar charts
+   - Timeline visualizations
+   - Joint angle analysis
+
+5. **First Frame**: `<video_name>_first_frame_annotated.png`
+   - When using identification mode, shows detected fencers with IDs
+
+## Advanced Features
+
+### Enhanced Lunge Detection
+
+The system combines two approaches for accurate lunge detection:
+1. **Traditional Pose Analysis**: Using skeletal keypoints to identify lunges based on joint angles and position changes
+2. **CNN Classification**: Using a trained CNN model to classify fencer poses
+
+When a lunge is detected, the system:
+- Updates the bounding box with "LUNGE" text
+- Adds a glowing effect around the fencer
+- Displays thicker borders
+- Shows directional arrows indicating movement
+
+### Bout Mode
+
+For analyzing competitive bouts with two fencers, the `--bout_mode` option:
+- Optimizes detection for exactly two fencers
+- Improves tracking of crossed fencers
+- Enhances visualization for better bout analysis
+
+## Training Your Own Models
+
+### Training Pose Classifier
+
+```bash
+python train_fencing_cnn.py --mode train_pose
+```
+
+This trains a CNN to classify fencing poses (neutral, attack, defense, lunge) using your own dataset.
+
+### Training Sword Detector
+
+```bash
+python train_fencing_cnn.py --mode train_sword
+```
+
+This trains a YOLOv8 model to detect fencing blades and their parts.
+
+## Example Videos
+
+The repository includes sample videos for testing:
+- `fencing_demo_video.mp4`: Sample fencing demo
+- `evenevenmorecropped (1).mp4`: Single fencer footage
+- `cropped_bout.mp4`: Two-fencer bout
+
+## System Requirements
+
+- Python 3.8 or higher
+- CUDA-compatible GPU (recommended for faster processing)
+- At least 8GB RAM
+- 500MB disk space for models
+
+## Credits
+
+This project uses:
+- YOLOv8 for object detection
+- MediaPipe for pose estimation
+- PyTorch for CNN implementation
+- OpenCV for image processing
+- SORT algorithm for object tracking
