@@ -1,0 +1,2 @@
+*.pth filter= diff= merge= text
+*.pt filter= diff= merge= text

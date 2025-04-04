@@ -6,69 +6,79 @@ from PIL import Image
 import numpy as np
 import cv2
 import os
+from torchvision import models
 
 class FencingPoseCNN(nn.Module):
     """
-    CNN for classifying fencing poses from cropped bounding boxes
+    CNN model for fencing pose classification
     """
     def __init__(self, num_classes=4):
-        super(FencingPoseCNN, self).__init__()
-        # Convolutional layers
-        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1)
-        self.bn1 = nn.BatchNorm2d(32)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
-        self.bn2 = nn.BatchNorm2d(64)
-        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1)
-        self.bn3 = nn.BatchNorm2d(128)
-        self.conv4 = nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1)
-        self.bn4 = nn.BatchNorm2d(256)
-        
-        # Pooling layer
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-        
-        # Fully connected layers
-        self.fc1 = nn.Linear(256 * 8 * 8, 512)
-        self.dropout = nn.Dropout(0.5)
-        self.fc2 = nn.Linear(512, num_classes)
-        
-        # Class names
-        self.class_names = ['neutral', 'attack', 'defense', 'lunge']
-    
-    def forward(self, x):
-        # Conv layers with ReLU and pooling
-        x = self.pool(F.relu(self.bn1(self.conv1(x))))
-        x = self.pool(F.relu(self.bn2(self.conv2(x))))
-        x = self.pool(F.relu(self.bn3(self.conv3(x))))
-        x = self.pool(F.relu(self.bn4(self.conv4(x))))
-        
-        # Flatten
-        x = x.view(-1, 256 * 8 * 8)
-        
-        # Fully connected with dropout
-        x = self.dropout(F.relu(self.fc1(x)))
-        x = self.fc2(x)
-        
-        return x
-    
-    def predict(self, image_tensor):
         """
-        Make a prediction on a single image tensor
+        Initialize the CNN model
         
         Args:
-            image_tensor: Preprocessed image tensor of shape [1, 3, 128, 128]
+            num_classes: Number of output classes
+        """
+        super(FencingPoseCNN, self).__init__()
+        
+        # Use MobileNetV2 as base model
+        self.features = models.mobilenet_v2(pretrained=True).features
+        
+        # Add classifier head
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.classifier = nn.Sequential(
+            nn.Dropout(0.2),
+            nn.Linear(1280, num_classes)
+        )
+        
+        # Freeze base model layers
+        for param in self.features.parameters():
+            param.requires_grad = False
+        
+        # Unfreeze the last two layers
+        for param in self.features[-2:].parameters():
+            param.requires_grad = True
+    
+    def forward(self, x):
+        """
+        Forward pass
+        
+        Args:
+            x: Input tensor
+            
+        Returns:
+            logits: Output logits
+        """
+        x = self.features(x)
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        logits = self.classifier(x)
+        return logits
+    
+    def predict(self, x):
+        """
+        Make a prediction
+        
+        Args:
+            x: Input tensor
             
         Returns:
             class_id: Predicted class ID
-            class_name: Name of predicted class
-            confidence: Confidence score
+            class_name: Predicted class name
+            confidence: Prediction confidence
         """
-        self.eval()
         with torch.no_grad():
-            outputs = self(image_tensor)
-            probabilities = F.softmax(outputs, dim=1)
-            confidence, predicted = torch.max(probabilities, 1)
+            logits = self.forward(x)
+            probabilities = F.softmax(logits, dim=1)
+            confidence, predicted_class = torch.max(probabilities, 1)
             
-            return predicted.item(), self.class_names[predicted.item()], confidence.item()
+            class_id = predicted_class.item()
+            confidence = confidence.item()
+            
+            class_names = ['neutral', 'attack', 'defense', 'lunge']
+            class_name = class_names[class_id] if 0 <= class_id < len(class_names) else 'unknown'
+            
+            return class_id, class_name, confidence
 
 
 class FencingPoseClassifier:
@@ -127,25 +137,53 @@ class FencingPoseClassifier:
         
         return tensor
     
-    def classify_pose(self, image):
+    def classify_pose(self, image, return_features=False):
         """
-        Classify fencing pose in an image
+        Classify a fencer pose
         
         Args:
-            image: Input image (cropped fencer, BGR format)
+            image: Input image (BGR)
+            return_features: Whether to return extracted features (default: False)
             
         Returns:
-            class_id: ID of predicted class
-            class_name: Name of predicted class
-            confidence: Confidence score
+            pose_class: Predicted pose class
+            confidence: Prediction confidence score (0-1)
+            features (optional): Extracted features if return_features=True
         """
-        # Preprocess image
-        tensor = self.preprocess_image(image)
+        # Convert BGR to RGB and preprocess
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image_tensor = self.preprocess_image(image_rgb)
         
-        # Get prediction
-        class_id, class_name, confidence = self.model.predict(tensor)
+        # Extract features using MobileNet
+        with torch.no_grad():
+            features = self.model.features(image_tensor)
+            features = F.adaptive_avg_pool2d(features, (1, 1))
+            features = torch.flatten(features, 1)
+            
+            # Get class prediction
+            output = self.model.classifier(features)
+            
+            # Apply softmax to get probabilities
+            probabilities = F.softmax(output, dim=1)
+            
+            # Get predicted class and confidence
+            confidence, predicted_class = torch.max(probabilities, 1)
+            
+            # Convert to numpy
+            predicted_class = predicted_class.cpu().numpy()[0]
+            confidence = confidence.cpu().numpy()[0]
+            
+            # Get class name
+            class_names = ['neutral', 'attack', 'defense', 'lunge']
+            if 0 <= predicted_class < len(class_names):
+                pose_class = class_names[predicted_class]
+            else:
+                pose_class = 'unknown'
         
-        return class_id, class_name, confidence
+        if return_features:
+            return pose_class, float(confidence), features.cpu().numpy()
+        else:
+            return pose_class, float(confidence)
     
     def train(self, train_loader, val_loader, epochs=10, lr=0.001, save_path=None):
         """

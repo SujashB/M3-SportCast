@@ -122,80 +122,132 @@ class PoseEstimator:
         
         return np.array(keypoints)
     
-    def draw_pose(self, frame, keypoints):
-        """Draw pose keypoints on frame"""
+    def draw_pose(self, image, keypoints, confined_to_box=None):
+        """
+        Draw pose keypoints on the image
+        
+        Args:
+            image: Input image
+            keypoints: Detected keypoints
+            confined_to_box: Optional bounding box to confine keypoints within [x1, y1, x2, y2]
+            
+        Returns:
+            image: Image with pose keypoints drawn
+        """
         if keypoints is None:
-            return frame
+            return image
+            
+        img = image.copy()
         
-        output_frame = frame.copy()
+        # Define the connections between keypoints for visualization
+        # Format: (start_idx, end_idx, color, thickness, label)
+        connections = [
+            # Upper body - stronger colors and thicker lines for arm
+            (0, 1, (55, 235, 195), 3, "head-neck"),    # nose to neck - light blue
+            (1, 2, (255, 95, 31), 4, "neck-r_shoulder"),   # neck to right shoulder - orange
+            (1, 5, (255, 95, 31), 4, "neck-l_shoulder"),   # neck to left shoulder - orange
+            (2, 3, (255, 95, 31), 5, "r_shoulder-r_elbow"),  # right shoulder to right elbow - orange
+            (3, 4, (255, 0, 0), 5, "r_elbow-r_wrist"),  # right elbow to right wrist - bright red
+            (5, 6, (255, 95, 31), 4, "l_shoulder-l_elbow"),  # left shoulder to left elbow - orange
+            (6, 7, (255, 95, 31), 4, "l_elbow-l_wrist"),  # left elbow to left wrist - orange
+            
+            # Torso
+            (1, 8, (55, 235, 195), 4, "neck-hip"),  # neck to mid hip
+            (8, 11, (55, 235, 195), 3, "hip-r_hip"), # mid hip to right hip
+            (8, 14, (55, 235, 195), 3, "hip-l_hip"), # mid hip to left hip
+            
+            # Lower body
+            (11, 12, (50, 205, 154), 3, "r_hip-r_knee"), # right hip to right knee
+            (12, 13, (50, 205, 154), 3, "r_knee-r_ankle"), # right knee to right ankle
+            (14, 15, (50, 205, 154), 3, "l_hip-l_knee"), # left hip to left knee
+            (15, 16, (50, 205, 154), 3, "l_knee-l_ankle"),  # left knee to left ankle
+        ]
         
-        if self.use_mmpose:
-            # Draw keypoints for mmpose
-            for kp in keypoints:
-                x, y, conf = kp
-                if conf > 0.5:
-                    cv2.circle(output_frame, (int(x), int(y)), 5, (0, 255, 0), -1)
-            
-            # Draw connections for important limbs
-            limbs = [
-                # Torso
-                (5, 6), (5, 11), (6, 12), (11, 12),
-                # Arms
-                (5, 7), (7, 9), (6, 8), (8, 10),
-                # Legs
-                (11, 13), (13, 15), (12, 14), (14, 16)
-            ]
-            
-            for limb in limbs:
-                pt1, pt2 = limbs
-                if keypoints[pt1, 2] > 0.5 and keypoints[pt2, 2] > 0.5:
-                    cv2.line(output_frame, 
-                             (int(keypoints[pt1, 0]), int(keypoints[pt1, 1])),
-                             (int(keypoints[pt2, 0]), int(keypoints[pt2, 1])),
-                             (0, 255, 255), 2)
-        else:
-            # Draw pose using mediapipe's built-in function
-            mp_drawing = mp.solutions.drawing_utils
-            mp_pose = mp.solutions.pose
-            
-            # Simplified drawing approach
-            height, width, _ = frame.shape
-            
-            # Draw keypoints directly
-            for idx, (x, y, conf) in enumerate(keypoints):
-                if conf > 0.5:
-                    # Draw circle for each keypoint
-                    cv2.circle(
-                        output_frame, 
-                        (int(x), int(y)), 
-                        5, (0, 255, 0), -1
-                    )
-            
-            # Draw skeleton with manually defined connections
-            connections = [
-                # Face connections
-                (0, 1), (1, 2), (2, 3), (3, 7), (0, 4), (4, 5), (5, 6), (6, 8),
-                # Upper body connections
-                (9, 10), (11, 12), (11, 13), (13, 15), (12, 14), (14, 16),
-                # Torso
-                (11, 23), (12, 24), (23, 24),
-                # Lower body
-                (23, 25), (25, 27), (27, 29), (29, 31), 
-                (24, 26), (26, 28), (28, 30), (30, 32)
-            ]
-            
-            for connection in connections:
-                idx1, idx2 = connection
-                if (idx1 < len(keypoints) and idx2 < len(keypoints) and
-                    keypoints[idx1, 2] > 0.5 and keypoints[idx2, 2] > 0.5):
-                    cv2.line(
-                        output_frame,
-                        (int(keypoints[idx1, 0]), int(keypoints[idx1, 1])),
-                        (int(keypoints[idx2, 0]), int(keypoints[idx2, 1])),
-                        (0, 255, 255), 2
-                    )
+        # Filter keypoints with sufficient confidence
+        valid_keypoints = []
+        for i, kp in enumerate(keypoints):
+            try:
+                if len(kp) >= 3 and kp[2] > 0.2:  # Lower confidence threshold to show more keypoints
+                    # Convert to int and handle potential None or invalid values
+                    x, y = float(kp[0]), float(kp[1])
+                    if not (math.isnan(x) or math.isnan(y)):
+                        x, y = int(x), int(y)
+                        
+                        # Apply box confinement if needed
+                        if confined_to_box is not None:
+                            x1, y1, x2, y2 = confined_to_box
+                            x = max(x1, min(x, x2))
+                            y = max(y1, min(y, y2))
+                        
+                        valid_keypoints.append((i, x, y))
+            except (TypeError, ValueError, IndexError):
+                continue
         
-        return output_frame
+        # Draw connections
+        for connection in connections:
+            start_idx, end_idx, color, thickness, _ = connection
+            
+            # Find both keypoints
+            start_point = None
+            end_point = None
+            
+            for idx, x, y in valid_keypoints:
+                if idx == start_idx:
+                    start_point = (int(x), int(y))
+                elif idx == end_idx:
+                    end_point = (int(x), int(y))
+            
+            # Draw line if both points are valid
+            if start_point and end_point:
+                try:
+                    # If we need to confine to a box
+                    if confined_to_box is not None:
+                        x1, y1, x2, y2 = confined_to_box
+                        
+                        # Confine start point to box
+                        start_x, start_y = start_point
+                        start_x = max(x1, min(start_x, x2))
+                        start_y = max(y1, min(start_y, y2))
+                        start_point = (int(start_x), int(start_y))
+                        
+                        # Confine end point to box
+                        end_x, end_y = end_point
+                        end_x = max(x1, min(end_x, x2))
+                        end_y = max(y1, min(end_y, y2))
+                        end_point = (int(end_x), int(end_y))
+                    
+                    # Draw line with specified color and thickness
+                    cv2.line(img, start_point, end_point, color, thickness)
+                except (TypeError, ValueError):
+                    continue
+        
+        # Draw keypoints - use larger brighter dots
+        for idx, x, y in valid_keypoints:
+            try:
+                # Different size and color for different keypoints
+                if idx == 0:  # Nose
+                    radius = 6
+                    color = (55, 235, 195)  # Light teal
+                elif idx in [2, 5]:  # Shoulders
+                    radius = 6
+                    color = (255, 95, 31)  # Orange
+                elif idx in [3, 6]:  # Elbows
+                    radius = 5
+                    color = (255, 95, 31)  # Orange
+                elif idx in [4, 7]:  # Wrists - most important for fencers
+                    radius = 7
+                    color = (255, 0, 0)  # Pure red - highlight wrists
+                else:  # Other keypoints
+                    radius = 4
+                    color = (55, 235, 195)  # Teal for most points
+                
+                # Draw keypoint as colored circle with black border
+                cv2.circle(img, (int(x), int(y)), radius, color, -1)
+                cv2.circle(img, (int(x), int(y)), radius + 1, (0, 0, 0), 1)
+            except (TypeError, ValueError):
+                continue
+        
+        return img
     
     def calculate_angles(self, keypoints, prev_keypoints=None):
         """Calculate relevant angles for fencing analysis"""
@@ -466,7 +518,7 @@ def process_video_with_pose(video_path, output_path=None, save_frames=False):
                         sentence = generate_descriptive_sentence(observations)
                         
                         # Draw pose on frame
-                        annotated_frame = pose_estimator.draw_pose(frame, keypoints)
+                        annotated_frame = pose_estimator.draw_pose(frame, keypoints, box)
                         
                         # Add text with observations and fencer ID
                         y_offset = 30

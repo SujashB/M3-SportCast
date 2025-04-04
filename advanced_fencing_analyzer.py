@@ -13,21 +13,22 @@ import matplotlib.patches as patches
 from pose_estimation_helper import PoseEstimator, process_video_with_pose, extract_pose_descriptions, generate_descriptive_sentence
 # Import fencer detector
 from fencer_detector import FencerDetector
-# Import our enhanced fencer detector with CNN and sword detection
-from enhanced_fencer_detector import EnhancedFencerDetector, SwordDetector
+# Import our enhanced fencer detector with CNN
+from enhanced_fencer_detector import EnhancedFencerDetector
 
 class SimplifiedFencingAnalyzer:
     """
-    Simplified fencing analysis system that focuses on pose estimation
+    Simplified fencing analyzer that combines pose estimation with fencer detection
     """
-    def __init__(self, pose_model_path=None, sword_model_path=None, use_enhanced_detector=True):
-        """Initialize the analyzer with pose estimation capability"""
-        print("Initializing Simplified Fencing Analyzer...")
+    def __init__(self, pose_model_path=None, use_enhanced_detector=False):
+        """
+        Initialize the analyzer
         
-        # Check if we should use the enhanced detector
-        self.use_enhanced_detector = use_enhanced_detector
-        self.pose_model_path = pose_model_path
-        self.sword_model_path = sword_model_path
+        Args:
+            pose_model_path: Path to trained CNN pose classifier model
+            use_enhanced_detector: Whether to use enhanced detector with CNN
+        """
+        print("Initializing Simplified Fencing Analyzer...")
         
         # Initialize pose estimator
         print("Loading pose estimator...")
@@ -36,27 +37,24 @@ class SimplifiedFencingAnalyzer:
             self.pose_estimator = PoseEstimator(use_mmpose=MMPOSE_AVAILABLE)
             print(f"Pose estimator initialized (using MMPose: {MMPOSE_AVAILABLE})")
         except ImportError as e:
-            print(f"Error initializing pose estimator: {e}")
-            self.pose_estimator = None
+            print(f"Warning: mmpose not available. Using mediapipe as fallback.")
+            self.pose_estimator = PoseEstimator(use_mmpose=False)
         
-        # Initialize fencer detector
-        print("Loading fencer detector...")
-        try:
-            if self.use_enhanced_detector:
-                self.fencer_detector = EnhancedFencerDetector(
-                    pose_model_path=self.pose_model_path,
-                    sword_model_path=self.sword_model_path
-                )
-                print("Enhanced fencer detector initialized with CNN pose classifier and sword detector")
-            else:
-                self.fencer_detector = FencerDetector()
-                print("Basic fencer detector initialized")
-        except ImportError as e:
-            print(f"Error initializing fencer detector: {e}")
-            self.fencer_detector = None
+        # Store configuration
+        self.use_enhanced_detector = use_enhanced_detector
         
-        # Initialize manual fencer selection state
-        self.manual_fencer_boxes = []
+        # Initialize fencer detector - use enhanced one if specified
+        if self.use_enhanced_detector:
+            print("Using device: cpu")
+            self.fencer_detector = EnhancedFencerDetector(
+                pose_model_path=pose_model_path
+            )
+            print("Enhanced fencer detector initialized with CNN pose classifier")
+        else:
+            self.fencer_detector = FencerDetector()
+            print("Basic fencer detector initialized")
+        
+        # Store manual fencer selection IDs
         self.manual_fencer_ids = []
         
         print("Initialization complete")
@@ -94,7 +92,7 @@ class SimplifiedFencingAnalyzer:
         detections = []
         if self.fencer_detector:
             if self.use_enhanced_detector:
-                tracked_items, sword_detections = self.fencer_detector.track_and_classify(frame)
+                tracked_items = self.fencer_detector.track_and_classify(frame)
                 
                 # Convert tracked items to detections format expected by the visualization code
                 detections = []
@@ -152,7 +150,7 @@ class SimplifiedFencingAnalyzer:
                 ax.add_patch(rect)
                 plt.text(x1, y1-10, class_name, color='orange', fontsize=10)
         
-        plt.title("First Frame - Detected Fencers & Swords")
+        plt.title("First Frame - Detected Fencers")
         plt.axis('off')
         
         # Save the annotated frame
@@ -170,472 +168,397 @@ class SimplifiedFencingAnalyzer:
         
         return annotated_frame_path
     
-    def analyze_video(self, video_path, output_dir="results", num_frames=None, 
-                     save_visualization=True, manual_select=None):
+    def analyze_video(self, video_path, output_dir=None, save_visualization=True, max_frames=None):
         """
-        Perform pose estimation analysis on a fencing video
+        Analyze a fencing video and generate a report
         
         Args:
             video_path: Path to the video file
-            output_dir: Directory to save results
-            num_frames: Maximum number of frames to process (None for all)
-            save_visualization: Whether to save visualization outputs
-            manual_select: Optional comma-separated list of fencer IDs to manually select
+            output_dir: Directory to save outputs. If None, use video name.
+            save_visualization: Whether to save visualizations
+            max_frames: Maximum number of frames to process. If None, process all.
             
         Returns:
-            results: Dict containing analysis results
+            Dictionary of analysis results
         """
-        # Create output directory
-        os.makedirs(output_dir, exist_ok=True)
+        # Set up output directory
         video_name = os.path.splitext(os.path.basename(video_path))[0]
+        if output_dir is None:
+            output_dir = f"{video_name}_analysis"
         
-        print(f"Analyzing video: {video_path}")
+        os.makedirs(output_dir, exist_ok=True)
         
-        # Process manual selection if specified
-        if manual_select:
-            print(f"Manual fencer selection: {manual_select}")
-            try:
-                selected_ids = [int(id.strip()) for id in manual_select.split(',')]
-                self.manual_fencer_ids = selected_ids
-                print(f"Will focus analysis on fencer IDs: {selected_ids}")
-            except ValueError:
-                print("Warning: Invalid manual selection format. Expected comma-separated integers.")
-                self.manual_fencer_ids = []
+        # Run analysis
+        frame_analyses, processed_frames = self.process_video(
+            video_path, output_dir, max_frames=max_frames
+        )
         
-        # Check if we should detect and isolate fencers first
-        if self.fencer_detector is not None:
-            print(f"Running fencer detection and isolation...")
-            
-            # Process video with fencer detection first, then do pose analysis per detected fencer
-            # Setup video output
-            pose_analysis_path = os.path.join(output_dir, f"{video_name}_pose_analysis.mp4") if save_visualization else None
-            
-            # Initialize video capture
-            cap = cv2.VideoCapture(video_path)
-            if not cap.isOpened():
-                print(f"Error opening video file: {video_path}")
-                return None
-            
-            # Get video properties
-            frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            fps = int(cap.get(cv2.CAP_PROP_FPS))
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            
-            if num_frames:
-                total_frames = min(total_frames, num_frames)
-            
-            # Initialize video writer if output path is provided
-            writer = None
-            if pose_analysis_path:
-                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                writer = cv2.VideoWriter(pose_analysis_path, fourcc, fps, (frame_width, frame_height))
-            
-            # Process frames
-            frame_analyses = []
-            processed_frames = []
-            
-            frame_count = 0
-            print(f"Processing video with fencer detection and pose estimation...")
-            print(f"Total frames to process: {total_frames}")
-            
-            # Store initial detections to help with tracking consistency
-            manual_boxes = {}
-            fencer_detection_counts = {fencer_id: 0 for fencer_id in self.manual_fencer_ids} if self.manual_fencer_ids else {}
-            last_known_boxes = {}  # Store last known location of each fencer
-            
-            # Track sword detections for statistics
-            sword_detection_counts = {"blade-guard": 0, "blade-tip": 0, "fencing-blade": 0}
-            
-            while cap.isOpened() and frame_count < total_frames:
-                ret, frame = cap.read()
-                if not ret:
-                    break
-                
-                # Only process every 3rd frame to improve speed
-                if frame_count % 3 == 0:
-                    print(f"Processing frame {frame_count}/{total_frames}")
-                    
-                    # Detect fencers using YOLOv8 - different approach for enhanced detector
-                    if self.use_enhanced_detector:
-                        # Use the enhanced detector with CNN classifier and sword detection
-                        tracked_items, sword_detections = self.fencer_detector.track_and_classify(frame)
-                        
-                        # Filter tracked items if manual selection is active
-                        if self.manual_fencer_ids:
-                            tracked_items = [item for item in tracked_items 
-                                            if item['fencer_id'] in self.manual_fencer_ids]
-                        
-                        # Create a copy of the frame for visualization
-                        annotated_frame = self.fencer_detector.draw_enhanced_detections(
-                            frame.copy(), tracked_items, sword_detections
-                        )
-                        
-                        # Add frame number to the annotated frame
-                        cv2.putText(annotated_frame, f"Frame: {frame_count}", (20, 30), 
-                                  cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-                        
-                        # Update sword detection counts
-                        if sword_detections:
-                            for det in sword_detections:
-                                class_name = det['class_name']
-                                if class_name in sword_detection_counts:
-                                    sword_detection_counts[class_name] += 1
-                        
-                        # Process each detected fencer - now using tracked_items directly
-                        for item in tracked_items:
-                            fencer_id = item['fencer_id']
-                            box = item['box']
-                            pose_class = item.get('pose_class', 'neutral')
-                            
-                            # Update statistics
-                            if fencer_id in fencer_detection_counts:
-                                fencer_detection_counts[fencer_id] += 1
-                            
-                            # Always update the last known box for this fencer
-                            last_known_boxes[fencer_id] = box
-                            
-                            # Estimate pose specifically for this fencer's bounding box
-                            keypoints = self.pose_estimator.estimate_pose(frame, box)
-                            
-                            if keypoints is not None:
-                                # Calculate angles
-                                angles = self.pose_estimator.calculate_angles(keypoints)
-                                
-                                # Analyze movement
-                                observations = self.pose_estimator.analyze_fencing_movement(angles)
-                                
-                                # Generate descriptive sentence - include CNN pose classification
-                                base_sentence = generate_descriptive_sentence(observations)
-                                sentence = f"{base_sentence} CNN classifies as: {pose_class}"
-                                
-                                # Draw pose on frame
-                                annotated_frame = self.pose_estimator.draw_pose(annotated_frame, keypoints)
-                                
-                                # Store analysis results
-                                frame_analyses.append({
-                                    'frame_idx': frame_count,
-                                    'fencer_id': fencer_id,
-                                    'angles': angles,
-                                    'observations': observations,
-                                    'sentence': sentence,
-                                    'box': [float(x) for x in box],
-                                    'pose_class': pose_class
-                                })
-                    else:
-                        # Use the original detection approach
-                        detections = self.fencer_detector.detect_fencers(frame)
-                        
-                        # Track fencers to maintain identity
-                        tracked_boxes = self.fencer_detector.track_fencers(frame, detections)
-                        
-                        # Filter tracked boxes if manual selection is active
-                        if self.manual_fencer_ids:
-                            # First apply the filter based on IDs
-                            tracked_boxes = [(fencer_id, box) for fencer_id, box in tracked_boxes 
-                                            if fencer_id in self.manual_fencer_ids]
-                            
-                            # Check if we're missing any selected fencers
-                            current_ids = [fid for fid, _ in tracked_boxes]
-                            missing_ids = [fid for fid in self.manual_fencer_ids if fid not in current_ids]
-                            
-                            # For missing fencers, use their last known location if available
-                            for missing_id in missing_ids:
-                                if missing_id in last_known_boxes:
-                                    print(f"Using last known location for fencer {missing_id} in frame {frame_count}")
-                                    tracked_boxes.append((missing_id, last_known_boxes[missing_id]))
-                        
-                        # Create a copy of the frame for visualization
-                        annotated_frame = frame.copy()
-                        
-                        # Add frame number to the annotated frame
-                        cv2.putText(annotated_frame, f"Frame: {frame_count}", (20, 30), 
-                                  cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-                        
-                        if tracked_boxes:
-                            # Update detection counts and last known locations
-                            for fencer_id, box in tracked_boxes:
-                                if fencer_id in fencer_detection_counts:
-                                    fencer_detection_counts[fencer_id] += 1
-                                
-                                # Always update the last known box for this fencer
-                                last_known_boxes[fencer_id] = box
-                            
-                            # Process each detected fencer
-                            for fencer_id, box in tracked_boxes:
-                                # Save box for first frame if it's a manually selected fencer
-                                if frame_count == 0 and fencer_id in self.manual_fencer_ids:
-                                    manual_boxes[fencer_id] = box
-                                
-                                # Estimate pose specifically for this fencer's bounding box
-                                keypoints = self.pose_estimator.estimate_pose(frame, box)
-                                
-                                if keypoints is not None:
-                                    # Calculate angles
-                                    angles = self.pose_estimator.calculate_angles(keypoints)
-                                    
-                                    # Analyze movement
-                                    observations = self.pose_estimator.analyze_fencing_movement(angles)
-                                    
-                                    # Generate descriptive sentence
-                                    sentence = generate_descriptive_sentence(observations)
-                                    
-                                    # Draw pose on frame
-                                    annotated_frame = self.pose_estimator.draw_pose(annotated_frame, keypoints)
-                                    
-                                    # Draw bounding box
-                                    x1, y1, x2, y2 = box
-                                    cv2.rectangle(annotated_frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-                                    cv2.putText(annotated_frame, f"Fencer {fencer_id}", (int(x1), int(y1)-10), 
-                                              cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-                                    
-                                    # Add text with observations
-                                    y_offset = int(y1) + 30
-                                    for obs in observations:
-                                        cv2.putText(annotated_frame, obs, (int(x1), y_offset), 
-                                                  cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-                                        y_offset += 25
-                                    
-                                    # Store analysis results
-                                    frame_analyses.append({
-                                        'frame_idx': frame_count,
-                                        'fencer_id': fencer_id,
-                                        'angles': angles,
-                                        'observations': observations,
-                                        'sentence': sentence,
-                                        'box': [float(x) for x in box]
-                                    })
-                        else:
-                            print(f"No fencers detected in frame {frame_count}")
-                    
-                    # Save for visualization
-                    if frame_count % 15 == 0 and save_visualization:  # Sample frames for visualization
-                        processed_frames.append(annotated_frame)
-                    
-                    # Write frame to output video
-                    if writer:
-                        writer.write(annotated_frame)
-                
-                frame_count += 1
-            
-            # Release resources
-            cap.release()
-            if writer:
-                writer.release()
-            
-            print(f"Processed {len(frame_analyses)} frames with pose estimation")
-            if fencer_detection_counts:
-                print("\nFencer detection statistics:")
-                for fencer_id, count in fencer_detection_counts.items():
-                    print(f"Fencer {fencer_id}: detected in {count} frames")
-            
-            # Print sword detection statistics if available
-            if self.use_enhanced_detector:
-                print("\nSword detection statistics:")
-                if sum(sword_detection_counts.values()) > 0:
-                    for part, count in sword_detection_counts.items():
-                        print(f"  {part}: {count} detections")
-                else:
-                    print("  No sword parts detected")
-        else:
-            # Fall back to standard pose estimation without fencer detection
-            print(f"Fencer detector not available. Running general pose estimation...")
-            pose_analysis_path = os.path.join(output_dir, f"{video_name}_pose_analysis.mp4") if save_visualization else None
-            
-            print(f"Running pose estimation on video...")
-            frame_analyses, processed_frames = process_video_with_pose(
-                video_path, 
-                pose_analysis_path,
-                save_frames=save_visualization
-            )
-            
-            print(f"Processed {len(frame_analyses)} frames with pose estimation")
-        
-        # Save sample frames
-        if save_visualization and processed_frames:
-            print("Saving sample frames with pose estimation...")
-            plt.figure(figsize=(15, 10))
-            for i in range(min(4, len(processed_frames))):
-                idx = i * len(processed_frames) // 4
-                plt.subplot(2, 2, i+1)
-                plt.imshow(cv2.cvtColor(processed_frames[idx], cv2.COLOR_BGR2RGB))
-                plt.title(f"Frame {i*len(processed_frames)//4}")
-                plt.axis('off')
-            
-            plt.suptitle("Fencing Pose Analysis")
-            plt.tight_layout()
-            frames_path = os.path.join(output_dir, f"{video_name}_pose_frames.png")
-            plt.savefig(frames_path)
-            plt.close()
-            print(f"Saved sample frames to {frames_path}")
-        
-        # Extract pose descriptions
+        # Extract pose descriptions and analyze the sequence
         pose_descriptions = extract_pose_descriptions(frame_analyses)
         
-        # Analyze pose descriptions to identify techniques
-        technique_counts = {
-            'attack': 0, 'defense': 0, 'parry': 0, 'riposte': 0, 
-            'lunge': 0, 'advance': 0, 'retreat': 0, 'feint': 0,
-            'movement': 0  # Add movement as an explicit category
-        }
+        # Analyze fencing techniques
+        technique_counts, fencer_technique_counts, hit_events = self.analyze_fencing_techniques(frame_analyses)
         
-        # Track techniques per fencer
-        fencer_technique_counts = {}
+        # Convert tuple results to dictionaries if needed
+        technique_counts_dict = {}
+        if isinstance(technique_counts, dict):
+            technique_counts_dict = technique_counts
+        else:
+            print(f"Warning: technique_counts is not a dictionary, converting from {type(technique_counts)}")
+            technique_counts_dict = {
+                'attack': 0, 'defense': 0, 'parry': 0, 'riposte': 0, 
+                'lunge': 0, 'advance': 0, 'retreat': 0, 'feint': 0, 
+                'hit': 0, 'movement': 0
+            }
         
-        # Extract frame-by-frame timeline data
-        timeline_data = []
+        fencer_technique_counts_dict = {}
+        if isinstance(fencer_technique_counts, dict):
+            fencer_technique_counts_dict = fencer_technique_counts
+        else:
+            print(f"Warning: fencer_technique_counts is not a dictionary, converting from {type(fencer_technique_counts)}")
+            for analysis in frame_analyses:
+                fencer_id = analysis.get('fencer_id')
+                if fencer_id is not None and fencer_id not in fencer_technique_counts_dict:
+                    fencer_technique_counts_dict[fencer_id] = {
+                        'attack': 0, 'defense': 0, 'parry': 0, 'riposte': 0, 
+                        'lunge': 0, 'advance': 0, 'retreat': 0, 'feint': 0,
+                        'hit': 0, 'movement': 0, 
+                        'cnn_neutral': 0, 'cnn_attack': 0, 'cnn_defense': 0, 'cnn_lunge': 0
+                    }
         
-        for analysis in frame_analyses:
-            frame_idx = analysis['frame_idx']
-            fencer_id = analysis['fencer_id']
-            desc_lower = analysis['sentence'].lower()
-            
-            # Get CNN classification if available
-            cnn_pose_class = analysis.get('pose_class', 'unknown')
-            
-            # Initialize counter for this fencer if not exists
-            if fencer_id not in fencer_technique_counts:
-                fencer_technique_counts[fencer_id] = {
-                    'attack': 0, 'defense': 0, 'parry': 0, 'riposte': 0, 
-                    'lunge': 0, 'advance': 0, 'retreat': 0, 'feint': 0,
-                    'movement': 0, 
-                    # Add CNN classifications
-                    'cnn_neutral': 0, 'cnn_attack': 0, 'cnn_defense': 0, 'cnn_lunge': 0
-                }
-            
-            # Check if any technique was detected in this frame
-            technique_detected = False
-            for technique in [t for t in technique_counts.keys() if t != 'movement']:
-                if technique in desc_lower:
-                    timeline_data.append((frame_idx, technique, fencer_id))
-                    technique_counts[technique] += 1
-                    fencer_technique_counts[fencer_id][technique] += 1
-                    technique_detected = True
-                    break
-            
-            # Add generic "movement" if no specific technique detected
-            if not technique_detected:
-                timeline_data.append((frame_idx, "movement", fencer_id))
-                technique_counts['movement'] += 1
-                fencer_technique_counts[fencer_id]['movement'] += 1
-            
-            # Add CNN classification counts
-            if cnn_pose_class != 'unknown':
-                cnn_key = f'cnn_{cnn_pose_class}'
-                if cnn_key in fencer_technique_counts[fencer_id]:
-                    fencer_technique_counts[fencer_id][cnn_key] += 1
+        hit_events_list = []
+        if isinstance(hit_events, list):
+            hit_events_list = hit_events
+        else:
+            print(f"Warning: hit_events is not a list, converting from {type(hit_events)}")
         
         # Generate visualizations
         if save_visualization:
-            print("\nGenerating visualizations...")
-            vis_paths = self.create_visualizations(
-                video_name=video_name,
-                technique_counts=technique_counts,
-                fencer_technique_counts=fencer_technique_counts,
-                timeline_data=timeline_data,
-                frame_analyses=frame_analyses,
-                processed_frames=processed_frames,
-                output_dir=output_dir,
-                use_enhanced_detector=self.use_enhanced_detector
-            )
-            print("Generated visualizations:")
-            for name, path in vis_paths.items():
-                print(f"  {name}: {path}")
+            # Create a type-safe wrapper for create_visualizations
+            def create_visualizations_safe():
+                try:
+                    return self.create_visualizations(
+                        video_name,
+                        technique_counts_dict,
+                        fencer_technique_counts_dict,
+                        hit_events_list,
+                        frame_analyses,
+                        processed_frames,
+                        output_dir,
+                        self.use_enhanced_detector
+                    )
+                except Exception as e:
+                    print(f"Error during visualization: {e}")
+                    return {}
+            
+            vis_paths = create_visualizations_safe()
         
-        # Compile all results
-        results = {
-            'video_path': video_path,
+        # Generate report
+        report_path = os.path.join(output_dir, f"{video_name}_report.html")
+        self.generate_report({
+            'video_name': video_name,
             'pose_descriptions': pose_descriptions,
             'technique_counts': technique_counts,
             'fencer_technique_counts': fencer_technique_counts,
-            'timeline_data': timeline_data,
+            'hit_events': hit_events,
             'frame_analyses': frame_analyses
+        }, report_path)
+        
+        # Return results
+        return {
+            'video_name': video_name,
+            'frame_analyses': frame_analyses,
+            'pose_descriptions': pose_descriptions,
+            'technique_counts': technique_counts,
+            'fencer_technique_counts': fencer_technique_counts,
+            'hit_events': hit_events
+        }
+    
+    def analyze_fencing_techniques(self, frame_analyses):
+        """
+        Analyze fencing techniques based on pose sequences and sword positions
+        
+        Args:
+            frame_analyses: List of frame analysis results
+            
+        Returns:
+            technique_counts: Dictionary of technique counts
+            fencer_technique_counts: Dictionary of technique counts per fencer
+            hit_events: List of detected hit events
+        """
+        # Initialize counters
+        technique_counts = {
+            'attack': 0, 'defense': 0, 'parry': 0, 'riposte': 0, 
+            'lunge': 0, 'advance': 0, 'retreat': 0, 'feint': 0, 
+            'hit': 0, 'movement': 0
         }
         
-        # Save results to JSON
-        results_path = os.path.join(output_dir, f"{video_name}_pose_analysis.json")
-        with open(results_path, 'w') as f:
-            # Convert non-serializable objects to strings
-            serializable_results = {
-                'video_path': results['video_path'],
-                'pose_descriptions': results['pose_descriptions'],
-                'technique_counts': results['technique_counts'],
-                'fencer_technique_counts': {str(k): v for k, v in results['fencer_technique_counts'].items()},
-                'timeline_data': [(idx, tech, fid) for idx, tech, fid in results['timeline_data']],
-                'frame_analyses': [
-                    {
-                        'frame_idx': analysis['frame_idx'],
-                        'fencer_id': analysis['fencer_id'],
-                        'observations': analysis['observations'],
-                        'sentence': analysis['sentence'],
-                        'angles': {k: float(v) for k, v in analysis['angles'].items()},
-                        'box': analysis.get('box', []),
-                        'pose_class': analysis.get('pose_class', 'unknown')
-                    }
-                    for analysis in results['frame_analyses']
-                ]
-            }
-            json.dump(serializable_results, f, indent=2)
+        fencer_technique_counts = {}
+        hit_events = []
         
-        print(f"Analysis results saved to {results_path}")
-        
-        # Print technique summary by fencer
-        print("\nTechnique Detection Summary:")
-        for fencer_id, counts in sorted(fencer_technique_counts.items()):
-            print(f"\nFencer {fencer_id}:")
+        # Group analyses by fencer and sort by frame
+        fencer_frames = {}
+        for analysis in frame_analyses:
+            fencer_id = analysis['fencer_id']
+            frame_idx = analysis['frame_idx']
             
-            # Print CNN classification counts first if enhanced detector was used
-            if self.use_enhanced_detector:
-                print("  CNN Classifications:")
-                for key in ['cnn_neutral', 'cnn_attack', 'cnn_defense', 'cnn_lunge']:
-                    if key in counts and counts[key] > 0:
-                        pose_name = key.replace('cnn_', '')
-                        print(f"    {pose_name}: {counts[key]} frames")
+            if fencer_id not in fencer_frames:
+                fencer_frames[fencer_id] = []
             
-            # Print traditional technique detection counts
-            print("  Detected Techniques:")
-            for technique, count in sorted([(k, v) for k, v in counts.items() if v > 0 and k != 'movement' and not k.startswith('cnn_')], 
-                                         key=lambda x: x[1], reverse=True):
-                print(f"    {technique}: {count} instances")
-            if counts['movement'] > 0:
-                print(f"    general movement: {counts['movement']} instances")
+            fencer_frames[fencer_id].append(analysis)
         
-        return results
+        # Sort each fencer's frames by index
+        for fencer_id in fencer_frames:
+            fencer_frames[fencer_id].sort(key=lambda x: x['frame_idx'])
+        
+        # Initialize state tracking for each fencer
+        fencer_states = {}
+        
+        # Process each fencer's frames to detect techniques
+        for fencer_id, frames in fencer_frames.items():
+            # Initialize fencer technique counter if needed
+            if fencer_id not in fencer_technique_counts:
+                fencer_technique_counts[fencer_id] = {
+                    'attack': 0, 'defense': 0, 'parry': 0, 'riposte': 0,
+                    'lunge': 0, 'advance': 0, 'retreat': 0, 'feint': 0,
+                    'hit': 0, 'movement': 0,
+                    # Add CNN classifications
+                    'cnn_neutral': 0, 'cnn_attack': 0, 'cnn_defense': 0, 'cnn_lunge': 0
+                }
+            # Ensure fencer_technique_counts[fencer_id] is a dictionary
+            elif not isinstance(fencer_technique_counts[fencer_id], dict):
+                print(f"Warning: Fencer {fencer_id} counts was not a dict ({type(fencer_technique_counts[fencer_id])}). Re-initializing.")
+                fencer_technique_counts[fencer_id] = {
+                    'attack': 0, 'defense': 0, 'parry': 0, 'riposte': 0,
+                    'lunge': 0, 'advance': 0, 'retreat': 0, 'feint': 0,
+                    'hit': 0, 'movement': 0,
+                    'cnn_neutral': 0, 'cnn_attack': 0, 'cnn_defense': 0, 'cnn_lunge': 0
+                }
+            
+            # Initialize this fencer's state
+            if fencer_id not in fencer_states:
+                fencer_states[fencer_id] = {
+                    'last_pose': 'neutral',
+                    'attack_start_frame': None,
+                    'potential_hit': False,
+                    'consecutive_attack_frames': 0
+                }
+            
+            # Track attack sequences
+            for i, analysis in enumerate(frames):
+                frame_idx = analysis['frame_idx']
+                pose_class = analysis.get('pose_class', 'neutral')
+                observations = analysis.get('observations', [])
+                angles = analysis.get('angles', {})
+                
+                # Convert observations list to indicators
+                has_arm_extended = False
+                has_arm_defensive = False
+                has_forward_motion = False
+                has_backward_motion = False
+                
+                # Look through observations list for relevant patterns
+                for obs in observations:
+                    if isinstance(obs, str):
+                        if 'arm extended' in obs.lower():
+                            has_arm_extended = True
+                        if 'defensive position' in obs.lower():
+                            has_arm_defensive = True
+                        if 'moving forward' in obs.lower():
+                            has_forward_motion = True
+                        if 'moving backward' in obs.lower():
+                            has_backward_motion = True
+                
+                # Add to CNN classification count
+                cnn_key = f'cnn_{pose_class}'
+                if cnn_key in fencer_technique_counts[fencer_id]:
+                    fencer_technique_counts[fencer_id][cnn_key] += 1
+                
+                # Check for specific techniques based on observations and pose
+                techniques_detected = []
+                
+                # Look for lunges in body angle changes
+                torso_angle = angles.get('torso_vertical', 90)
+                knee_angle = angles.get('right_leg', 180)
+                
+                # Detect lunge - arm extended with forward leaning and bent knee
+                if has_arm_extended and torso_angle < 75 and knee_angle < 130:
+                    techniques_detected.append('lunge')
+                    
+                # Detect attack - arm extended and moving forward
+                if has_arm_extended and pose_class == 'attack':
+                    techniques_detected.append('attack')
+                    # Track consecutive attack frames
+                    if fencer_states[fencer_id]['consecutive_attack_frames'] == 0:
+                        fencer_states[fencer_id]['attack_start_frame'] = frame_idx
+                    fencer_states[fencer_id]['consecutive_attack_frames'] += 1
+                else:
+                    # Reset if not in attack
+                    fencer_states[fencer_id]['consecutive_attack_frames'] = 0
+                
+                # Attack must be sustained for several frames to be counted
+                if fencer_states[fencer_id]['consecutive_attack_frames'] >= 3:
+                    if 'attack' not in techniques_detected:
+                        techniques_detected.append('attack')
+                
+                # Look for defensive positions
+                if has_arm_defensive and pose_class == 'defense':
+                    techniques_detected.append('defense')
+                    
+                    # Check if this is a parry after opponent attack
+                    for other_id, other_state in fencer_states.items():
+                        if other_id != fencer_id and other_state.get('consecutive_attack_frames', 0) > 0:
+                            # This could be a parry in response to attack
+                            techniques_detected.append('parry')
+                            break
+                
+                # Detect retreat based on backward motion
+                if has_backward_motion:
+                    techniques_detected.append('retreat')
+                
+                # Detect advance based on forward motion
+                if has_forward_motion and 'attack' not in techniques_detected:
+                    techniques_detected.append('advance')
+                
+                # Add generic movement if nothing specific detected
+                if not techniques_detected:
+                    techniques_detected.append('movement')
+                
+                # Update the technique counts
+                for technique in techniques_detected:
+                    technique_counts[technique] += 1
+                    fencer_technique_counts[fencer_id][technique] += 1
+                
+                # Update fencer state
+                fencer_states[fencer_id]['last_pose'] = pose_class
+        
+        # Look for potential hits across fencers
+        # We consider a hit when one fencer is attacking and their sword tip
+        # comes close to the other fencer's body
+        if len(fencer_frames) >= 2 and any(frames for frames in fencer_frames.values() if frames): 
+            min_frame = min([frames[0]['frame_idx'] for frames in fencer_frames.values() if frames])
+            max_frame = max([frames[-1]['frame_idx'] for frames in fencer_frames.values() if frames])
+            
+            for frame_idx in range(min_frame, max_frame + 1):
+                attacking_fencers = []
+                defending_fencers = []
+                
+                # Find fencers attacking or defending in this frame
+                for fencer_id, frames in fencer_frames.items():
+                    matching_frames = [f for f in frames if f['frame_idx'] == frame_idx]
+                    
+                    if matching_frames:
+                        analysis = matching_frames[0]
+                        pose_class = analysis.get('pose_class', 'neutral')
+                        
+                        if pose_class == 'attack' or fencer_states[fencer_id]['consecutive_attack_frames'] > 0:
+                            attacking_fencers.append((fencer_id, analysis))
+                        else:
+                            defending_fencers.append((fencer_id, analysis))
+                
+                # Check for potential hits
+                for attacker_id, attacker_analysis in attacking_fencers:
+                    for defender_id, defender_analysis in defending_fencers:
+                        # In a real implementation, we would check if the attacker's sword tip
+                        # is close to the defender's body using computer vision
+                        # For now, we'll use a simplified approach using the bounding boxes
+                        
+                        if 'box' in attacker_analysis and 'box' in defender_analysis:
+                            attacker_box = attacker_analysis['box']
+                            defender_box = defender_analysis['box']
+                            
+                            # Calculate overlap or proximity
+                            iou = self.calculate_iou(attacker_box, defender_box)
+                            
+                            # If boxes overlap and attacker is in attacking pose, consider it a potential hit
+                            if iou > 0 and attacker_analysis.get('pose_class') == 'attack':
+                                # Create a hit event
+                                hit_event = {
+                                    'frame_idx': frame_idx,
+                                    'attacker_id': attacker_id,
+                                    'defender_id': defender_id,
+                                    'confidence': iou * 100  # Convert to percentage
+                                }
+                                hit_events.append(hit_event)
+                                
+                                # Update technique counts
+                                technique_counts['hit'] += 1
+                                fencer_technique_counts[attacker_id]['hit'] += 1
+        
+        # Ensure we're explicitly returning a dictionary and a list
+        return dict(technique_counts), dict(fencer_technique_counts), list(hit_events)
     
-    def create_visualizations(self, video_name, technique_counts, fencer_technique_counts, timeline_data, frame_analyses, processed_frames, output_dir, use_enhanced_detector):
+    def create_visualizations(self, video_name, technique_counts, fencer_technique_counts, hit_events, frame_analyses, processed_frames, output_dir, use_enhanced_detector):
         """
         Create visualizations for the analysis
         
         Args:
-            video_name: Name of the video
+            video_name: Name of the video file
             technique_counts: Dictionary of technique counts
             fencer_technique_counts: Dictionary of technique counts per fencer
-            timeline_data: List of (frame_idx, technique, fencer_id) tuples
+            hit_events: List of detected hit events
             frame_analyses: List of frame analysis dictionaries
             processed_frames: List of processed frames with pose visualization
-            output_dir: Directory to save visualizations
-            use_enhanced_detector: Boolean indicating whether to use the enhanced detector
-            
-        Returns:
-            vis_paths: Dictionary of visualization paths
+            output_dir: Output directory for visualizations
+            use_enhanced_detector: Whether enhanced detector was used
         """
-        vis_paths = {}
+        # Debug
+        print(f"Type of technique_counts: {type(technique_counts)}")
+        print(f"Type of fencer_technique_counts: {type(fencer_technique_counts)}")
+        print(f"Type of hit_events: {type(hit_events)}")
         
-        # Define a consistent color map for techniques
-        all_techniques = [
-            'attack', 'defense', 'parry', 'riposte', 'lunge', 'advance', 'retreat', 'feint', 'movement',
-            # Add CNN classification keys
-            'cnn_neutral', 'cnn_attack', 'cnn_defense', 'cnn_lunge'
-        ]
+        # Force technique_counts to be a dictionary
+        if not isinstance(technique_counts, dict):
+            print(f"Converting technique_counts from {type(technique_counts)} to dict")
+            # Create a new dictionary
+            technique_counts = {
+                'attack': 0, 'defense': 0, 'parry': 0, 'riposte': 0, 
+                'lunge': 0, 'advance': 0, 'retreat': 0, 'feint': 0,
+                'hit': 0, 'movement': 0
+            }
+        
+        # Force fencer_technique_counts to be a dictionary
+        if not isinstance(fencer_technique_counts, dict):
+            print(f"Converting fencer_technique_counts from {type(fencer_technique_counts)} to dict")
+            # Create a new dictionary
+            fencer_technique_counts = {}
+            for analysis in frame_analyses:
+                fencer_id = analysis.get('fencer_id')
+                if fencer_id is not None and fencer_id not in fencer_technique_counts:
+                    fencer_technique_counts[fencer_id] = {
+                        'attack': 0, 'defense': 0, 'parry': 0, 'riposte': 0, 
+                        'lunge': 0, 'advance': 0, 'retreat': 0, 'feint': 0,
+                        'hit': 0, 'movement': 0, 
+                        'cnn_neutral': 0, 'cnn_attack': 0, 'cnn_defense': 0, 'cnn_lunge': 0
+                    }
+        
+        # Force hit_events to be a list
+        if not isinstance(hit_events, list):
+            print(f"Converting hit_events from {type(hit_events)} to list")
+            hit_events = []
+        
+        # Define colors for techniques
         technique_to_color = {
-            tech: plt.cm.tab10(i % 10) for i, tech in enumerate(all_techniques)
+            'attack': 'red',
+            'defense': 'blue',
+            'parry': 'green',
+            'riposte': 'purple',
+            'lunge': 'orange',
+            'advance': 'cyan',
+            'retreat': 'brown',
+            'feint': 'pink',
+            'hit': 'darkred',
+            'movement': 'gray'
         }
         
-        # 1. Pie charts of technique distribution (overall and per fencer)
-        # Overall pie chart
-        plt.figure(figsize=(10, 8))
-        # Filter out techniques with zero count
-        filtered_counts = {k: v for k, v in technique_counts.items() if v > 0 and k != 'movement'}
+        # 1. Pie chart of technique distribution
+        plt.figure(figsize=(10, 10))
+        
+        # Filter out movement for cleaner visualization
+        filtered_counts = {}
+        for k, v in technique_counts.items():
+            if v > 0 and k != 'movement':
+                filtered_counts[k] = v
         
         if filtered_counts:
             plt.pie(
@@ -643,164 +566,234 @@ class SimplifiedFencingAnalyzer:
                 labels=filtered_counts.keys(),
                 autopct='%1.1f%%',
                 startangle=90,
-                shadow=True,
                 colors=[technique_to_color[t] for t in filtered_counts.keys()]
             )
-            plt.axis('equal')
-            plt.title('Overall Technique Distribution')
+            plt.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+            plt.title('Technique Distribution')
         else:
             plt.text(0.5, 0.5, 'No specific techniques detected', 
                     horizontalalignment='center', verticalalignment='center')
             plt.axis('off')
         
+        # Save the pie chart
         pie_path = os.path.join(output_dir, f"{video_name}_pie.png")
         plt.savefig(pie_path)
         plt.close()
-        vis_paths['pie_chart'] = pie_path
+        visualizations = {'pie_chart': pie_path}
         
-        # Pie charts per fencer
-        for fencer_id, counts in fencer_technique_counts.items():
-            plt.figure(figsize=(10, 8))
-            filtered_counts = {k: v for k, v in counts.items() if v > 0 and k != 'movement'}
-            
+        # --- BEGIN DEBUG PRINT ---
+        print("\n--- Debugging fencer_technique_counts before loops ---")
+        print(f"Type of fencer_technique_counts: {type(fencer_technique_counts)}")
+        if isinstance(fencer_technique_counts, dict):
+            for f_id, f_counts in fencer_technique_counts.items():
+                print(f"  Fencer ID: {f_id}, Type of counts: {type(f_counts)}, Value: {f_counts}")
+        else:
+            print(f"fencer_technique_counts is not a dict! Value: {fencer_technique_counts}")
+        print("--- End Debugging ---\n")
+        # --- END DEBUG PRINT ---
+
+        # Create per-fencer pie charts
+        for fencer_id, counts_data in fencer_technique_counts.items():
+            plt.figure(figsize=(8, 8))
+
+            # --- BEGIN ROBUST TRY-EXCEPT ---
+            try:
+                # Attempt to iterate, assuming dict-like structure
+                filtered_counts = {}
+                # Try calling .items() and iterate
+                for k, v in counts_data.items():
+                    if v > 0 and k != 'movement' and not k.startswith('cnn_'):
+                        filtered_counts[k] = v
+
+            except AttributeError:
+                # Catch error if .items() fails (e.g., it's a tuple)
+                print(f"Warning: Expected dictionary-like object for fencer {fencer_id} counts, but got {type(counts_data)}. Skipping pie chart.")
+                plt.close() # Close the empty figure
+                continue # Skip to next fencer
+            except Exception as e:
+                 # Catch any other unexpected errors during iteration
+                 print(f"Warning: Error processing counts for fencer {fencer_id} pie chart ({type(counts_data)}): {e}. Skipping.")
+                 plt.close()
+                 continue
+            # --- END ROBUST TRY-EXCEPT ---
+
+            # --- Plotting logic using filtered_counts ---
             if filtered_counts:
                 plt.pie(
                     filtered_counts.values(),
                     labels=filtered_counts.keys(),
                     autopct='%1.1f%%',
                     startangle=90,
-                    shadow=True,
-                    colors=[technique_to_color[t] for t in filtered_counts.keys()]
+                    colors=[technique_to_color.get(t, 'gray') for t in filtered_counts.keys()] # Use .get for safety
                 )
                 plt.axis('equal')
                 plt.title(f'Fencer {fencer_id} Technique Distribution')
             else:
-                plt.text(0.5, 0.5, 'No specific techniques detected', 
+                plt.text(0.5, 0.5, 'No specific techniques detected',
                         horizontalalignment='center', verticalalignment='center')
                 plt.axis('off')
-            
+
+            # Save the fencer pie chart
             fencer_pie_path = os.path.join(output_dir, f"{video_name}_fencer{fencer_id}_pie.png")
             plt.savefig(fencer_pie_path)
             plt.close()
-            vis_paths[f'fencer{fencer_id}_pie'] = fencer_pie_path
+            visualizations[f'fencer{fencer_id}_pie'] = fencer_pie_path
         
         # 2. Bar chart of technique counts
-        plt.figure(figsize=(12, 6))
-        filtered_items = [(k, v) for k, v in technique_counts.items() if v > 0 and k != 'movement']
+        plt.figure(figsize=(15, 8))
         
-        if filtered_items:
-            techniques, counts = zip(*sorted(filtered_items, key=lambda x: x[1], reverse=True))
-            plt.bar(techniques, counts, color=[technique_to_color[t] for t in techniques])
-            plt.xlabel('Techniques')
+        # Exclude movement from bar chart for clarity
+        filtered_counts = {}
+        for k, v in technique_counts.items():
+            if k != 'movement':
+                filtered_counts[k] = v
+        
+        # Sort by count descending
+        sorted_techniques = []
+        for k, v in filtered_counts.items():
+            sorted_techniques.append((k, v))
+        
+        sorted_techniques.sort(key=lambda x: x[1], reverse=True)
+        
+        techniques, counts = zip(*sorted_techniques) if sorted_techniques else ([], [])
+        
+        if techniques:
+            bars = plt.bar(techniques, counts, color=[technique_to_color[t] for t in techniques])
+            
+            # Add count labels on top of bars
+            for bar in bars:
+                height = bar.get_height()
+                plt.text(bar.get_x() + bar.get_width()/2., height + 0.1,
+                        f'{height:.0f}',
+                        ha='center', va='bottom')
+            
+            plt.title('Technique Counts')
             plt.ylabel('Count')
-            plt.title('Technique Frequency')
             plt.xticks(rotation=45)
         else:
             plt.text(0.5, 0.5, 'No specific techniques detected', 
                     horizontalalignment='center', verticalalignment='center')
             plt.axis('off')
         
-        plt.tight_layout()
+        # Save the bar chart
         bar_path = os.path.join(output_dir, f"{video_name}_bar.png")
         plt.savefig(bar_path)
         plt.close()
-        vis_paths['bar_chart'] = bar_path
+        visualizations['bar_chart'] = bar_path
         
-        # Bar charts per fencer
-        for fencer_id, counts in fencer_technique_counts.items():
+        # Create per-fencer bar charts
+        for fencer_id, counts_data in fencer_technique_counts.items():
             plt.figure(figsize=(12, 6))
-            filtered_items = [(k, v) for k, v in counts.items() if v > 0 and k != 'movement']
-            
-            if filtered_items:
-                techniques, counts = zip(*sorted(filtered_items, key=lambda x: x[1], reverse=True))
-                plt.bar(techniques, counts, color=[technique_to_color[t] for t in techniques])
-                plt.xlabel('Techniques')
+
+            # --- BEGIN ROBUST TRY-EXCEPT ---
+            try:
+                # Attempt to iterate, assuming dict-like structure
+                filtered_counts = {}
+                # Try calling .items() and iterate
+                for k, v in counts_data.items():
+                     if k != 'movement' and not k.startswith('cnn_'):
+                        filtered_counts[k] = v
+
+            except AttributeError:
+                # Catch error if .items() fails (e.g., it's a tuple)
+                print(f"Warning: Expected dictionary-like object for fencer {fencer_id} counts, but got {type(counts_data)}. Skipping bar chart.")
+                plt.close() # Close the empty figure
+                continue # Skip to next fencer
+            except Exception as e:
+                 # Catch any other unexpected errors during iteration
+                 print(f"Warning: Error processing counts for fencer {fencer_id} bar chart ({type(counts_data)}): {e}. Skipping.")
+                 plt.close()
+                 continue
+            # --- END ROBUST TRY-EXCEPT ---
+
+            # --- Processing logic using filtered_counts ---
+            # Sort by count descending
+            sorted_techniques = []
+            # Iterate over the filtered_counts dictionary created in the try block
+            for k, v in filtered_counts.items():
+                sorted_techniques.append((k, v))
+
+            sorted_techniques.sort(key=lambda x: x[1], reverse=True)
+
+            techniques, technique_counts_values = zip(*sorted_techniques) if sorted_techniques else ([], []) # Renamed variable
+
+            # --- Plotting logic ---
+            if techniques:
+                # Use technique_counts_values here
+                bars = plt.bar(techniques, technique_counts_values, color=[technique_to_color.get(t, 'gray') for t in techniques]) # Use .get
+
+                # Add count labels on top of bars
+                for bar in bars:
+                    height = bar.get_height()
+                    plt.text(bar.get_x() + bar.get_width()/2., height + 0.1,
+                            f'{height:.0f}',
+                            ha='center', va='bottom')
+
+                plt.title(f'Fencer {fencer_id} Technique Counts')
                 plt.ylabel('Count')
-                plt.title(f'Fencer {fencer_id} Technique Frequency')
                 plt.xticks(rotation=45)
             else:
                 plt.text(0.5, 0.5, 'No specific techniques detected', 
                         horizontalalignment='center', verticalalignment='center')
                 plt.axis('off')
             
-            plt.tight_layout()
+            # Save the fencer bar chart
             fencer_bar_path = os.path.join(output_dir, f"{video_name}_fencer{fencer_id}_bar.png")
             plt.savefig(fencer_bar_path)
             plt.close()
-            vis_paths[f'fencer{fencer_id}_bar'] = fencer_bar_path
+            visualizations[f'fencer{fencer_id}_bar'] = fencer_bar_path
         
-        # 3. Timeline visualization (overall and per fencer)
-        if timeline_data:
-            # Overall timeline
+        # 3. Timeline visualization for hit events
+        hit_timeline_path = os.path.join(output_dir, f"{video_name}_hit_timeline.png")
+        
+        if hit_events:
             plt.figure(figsize=(15, 6))
-            frames, techniques, _ = zip(*timeline_data)
+            # Extract data from hit events
+            frame_indices = [event['frame_idx'] for event in hit_events]
+            attack_fencer_ids = [event['attacker_id'] for event in hit_events]
+            confidence_values = [event['confidence'] for event in hit_events]
             
-            # Plot points with color-coded techniques
-            unique_techniques = sorted(set(techniques))
+            # Create a scatter plot of hit events
+            scatter = plt.scatter(
+                frame_indices, 
+                confidence_values,
+                c=np.array(attack_fencer_ids) % 10,  # Cycle through 10 colors
+                cmap='tab10',
+                s=100,  # Point size
+                alpha=0.7,
+                edgecolors='black'
+            )
             
-            for technique in unique_techniques:
-                indices = [i for i, (_, tech, _) in enumerate(timeline_data) if tech == technique]
-                if indices:  # Only plot if there are instances
-                    plt.scatter(
-                        [frames[i] for i in indices],
-                        [1 for _ in indices],
-                        c=[technique_to_color[technique] for _ in indices],
-                        label=technique,
-                        s=50
+            # Add a legend for fencer IDs
+            legend1 = plt.legend(*scatter.legend_elements(),
+                                loc="upper right", title="Attacker ID")
+            plt.gca().add_artist(legend1)
+            
+            plt.title('Hit Events Timeline')
+            plt.xlabel('Frame')
+            plt.ylabel('Hit Confidence (%)')
+            plt.ylim(0, 100)
+            plt.grid(True, alpha=0.3)
+            
+            # Add annotations for major hits (high confidence)
+            for i, event in enumerate(hit_events):
+                if event['confidence'] > 50:  # Only annotate high confidence hits
+                    plt.annotate(
+                        f"{event['attacker_id']} → {event['defender_id']}",
+                        (event['frame_idx'], event['confidence']),
+                        xytext=(10, 10),
+                        textcoords='offset points',
+                        arrowprops=dict(arrowstyle='->', color='black')
                     )
             
-            plt.yticks([])
-            plt.xlabel('Frame')
-            plt.title('Overall Technique Timeline')
-            plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.05), ncol=5)
             plt.tight_layout()
-            timeline_path = os.path.join(output_dir, f"{video_name}_timeline.png")
-            plt.savefig(timeline_path)
+            plt.savefig(hit_timeline_path)
             plt.close()
-            vis_paths['timeline'] = timeline_path
-            
-            # Timeline per fencer
-            for fencer_id in fencer_technique_counts.keys():
-                plt.figure(figsize=(15, 6))
-                
-                # Filter timeline data for this fencer
-                fencer_timeline = [(f, t) for f, t, fid in timeline_data if fid == fencer_id]
-                
-                if fencer_timeline:
-                    frames, techniques = zip(*fencer_timeline)
-                    
-                    # Plot points with color-coded techniques
-                    unique_techniques = sorted(set(techniques))
-                    
-                    for technique in unique_techniques:
-                        indices = [i for i, (_, tech) in enumerate(fencer_timeline) if tech == technique]
-                        if indices:  # Only plot if there are instances
-                            plt.scatter(
-                                [frames[i] for i in indices],
-                                [1 for _ in indices],
-                                c=[technique_to_color[technique] for _ in indices],
-                                label=technique,
-                                s=50
-                            )
-                    
-                    plt.yticks([])
-                    plt.xlabel('Frame')
-                    plt.title(f'Fencer {fencer_id} Technique Timeline')
-                    plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.05), ncol=5)
-                else:
-                    plt.text(0.5, 0.5, 'No data for this fencer', 
-                            horizontalalignment='center', verticalalignment='center')
-                    plt.axis('off')
-                
-                plt.tight_layout()
-                fencer_timeline_path = os.path.join(output_dir, f"{video_name}_fencer{fencer_id}_timeline.png")
-                plt.savefig(fencer_timeline_path)
-                plt.close()
-                vis_paths[f'fencer{fencer_id}_timeline'] = fencer_timeline_path
+            visualizations['hit_timeline'] = hit_timeline_path
         
-        # 4. Joint angle analysis
-        # Extract a few key joint angles over time
+        # 4. Create joint angle visualization
         angle_data = {}
+        
         for analysis in frame_analyses:
             frame_idx = analysis['frame_idx']
             fencer_id = analysis['fencer_id']
@@ -817,83 +810,88 @@ class SimplifiedFencingAnalyzer:
             angle_data[fencer_id]['right_leg'].append(angles.get('right_leg', float('nan')))
             angle_data[fencer_id]['left_leg'].append(angles.get('left_leg', float('nan')))
         
-        # Plot angles for all fencers, with each fencer in a separate file
-        if angle_data:
-            # Overall angle plot
-            plt.figure(figsize=(15, 10))
-            
-            for i, (fencer_id, data) in enumerate(list(angle_data.items())[:3]):
-                plt.subplot(3, 1, i+1)
-                
-                # Plot arm angles
-                if data['right_arm']:
-                    plt.plot(data['frames'], data['right_arm'], 'r-', label='Right Arm Angle')
-                
-                if data['left_arm']:
-                    plt.plot(data['frames'], data['left_arm'], 'g-', label='Left Arm Angle')
-                
-                # Plot leg angles
-                if data['right_leg']:
-                    plt.plot(data['frames'], data['right_leg'], 'b--', label='Right Leg Angle')
-                
-                if data['left_leg']:
-                    plt.plot(data['frames'], data['left_leg'], 'm--', label='Left Leg Angle')
-                
-                plt.title(f'Fencer {fencer_id} Joint Angles')
-                plt.xlabel('Frame')
-                plt.ylabel('Angle (degrees)')
-                plt.legend()
-            
-            plt.tight_layout()
-            angles_path = os.path.join(output_dir, f"{video_name}_angles.png")
-            plt.savefig(angles_path)
-            plt.close()
-            vis_paths['angles'] = angles_path
-            
-            # Individual angle plots per fencer
-            for fencer_id, data in angle_data.items():
-                plt.figure(figsize=(15, 8))
-                
-                # Plot arm angles
-                if data['right_arm']:
-                    plt.plot(data['frames'], data['right_arm'], 'r-', label='Right Arm Angle')
-                
-                if data['left_arm']:
-                    plt.plot(data['frames'], data['left_arm'], 'g-', label='Left Arm Angle')
-                
-                # Plot leg angles
-                if data['right_leg']:
-                    plt.plot(data['frames'], data['right_leg'], 'b--', label='Right Leg Angle')
-                
-                if data['left_leg']:
-                    plt.plot(data['frames'], data['left_leg'], 'm--', label='Left Leg Angle')
-                
-                plt.title(f'Fencer {fencer_id} Joint Angles')
-                plt.xlabel('Frame')
-                plt.ylabel('Angle (degrees)')
-                plt.legend()
-                
-                plt.tight_layout()
-                fencer_angles_path = os.path.join(output_dir, f"{video_name}_fencer{fencer_id}_angles.png")
-                plt.savefig(fencer_angles_path)
-                plt.close()
-                vis_paths[f'fencer{fencer_id}_angles'] = fencer_angles_path
-        
-        # 5. Summary visualization
+        # Overall angle visualization
         plt.figure(figsize=(15, 10))
         
-        # Add detection statistics to the title
-        detection_stats = []
-        if hasattr(self, 'manual_fencer_ids') and self.manual_fencer_ids:
-            for fencer_id in sorted(fencer_technique_counts.keys()):
-                frame_count = len([1 for analysis in frame_analyses if analysis['fencer_id'] == fencer_id])
-                detection_stats.append(f"Fencer {fencer_id}: {frame_count} frames")
+        # Plot angles for each fencer with different colors
+        for fencer_id, data in angle_data.items():
+            frames = data['frames']
+                
+            if not frames:
+                continue
+                
+            # Get a color for this fencer
+            fencer_color = plt.cm.tab10(fencer_id % 10)
+                
+            # Plot different angles with transparency
+            plt.plot(frames, data['right_arm'], 'o-', alpha=0.7, markersize=3, linewidth=1, label=f'Fencer {fencer_id} - Right Arm', color=fencer_color)
+                
+        plt.title('Right Arm Angle Variation')
+        plt.xlabel('Frame')
+        plt.ylabel('Angle (degrees)')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
         
-        detection_stats_text = " | ".join(detection_stats) if detection_stats else ""
+        # Save overall angle visualization
+        angles_path = os.path.join(output_dir, f"{video_name}_angles.png")
+        plt.savefig(angles_path)
+        plt.close()
+        visualizations['angles'] = angles_path
         
-        # Technique pie chart (top left)
+        # Create per-fencer angle visualizations
+        for fencer_id, data in angle_data.items():
+            plt.figure(figsize=(15, 10))
+            
+            frames = data['frames']
+            if not frames:
+                continue
+            
+            # Plot multiple angles for this fencer
+            plt.plot(frames, data['right_arm'], 'r-', label='Right Arm', linewidth=2)
+            plt.plot(frames, data['left_arm'], 'b-', label='Left Arm', linewidth=2)
+            plt.plot(frames, data['torso'], 'g-', label='Torso Vertical', linewidth=2)
+            plt.plot(frames, data['right_leg'], 'm-', label='Right Leg', linewidth=2)
+            plt.plot(frames, data['left_leg'], 'c-', label='Left Leg', linewidth=2)
+            
+            plt.title(f'Fencer {fencer_id} - Joint Angles')
+            plt.xlabel('Frame')
+            plt.ylabel('Angle (degrees)')
+            plt.legend()
+            plt.grid(True, alpha=0.3)
+            
+            # Add annotations for hit events involving this fencer
+            for event in hit_events:
+                if event['attacker_id'] == fencer_id or event['defender_id'] == fencer_id:
+                    frame_idx = event['frame_idx']
+                    # Find closest frame in data
+                    if frame_idx in frames:
+                        idx = frames.index(frame_idx)
+                        angle = data['right_arm'][idx]  # Use right arm angle for annotation
+                        role = "Attacker" if event['attacker_id'] == fencer_id else "Defender"
+                        plt.annotate(
+                            f"{role}: vs Fencer {event['defender_id'] if role == 'Attacker' else event['attacker_id']}",
+                            (frame_idx, angle),
+                            xytext=(5, 5),
+                            textcoords='offset points',
+                            arrowprops=dict(arrowstyle='->', color='red' if role == 'Attacker' else 'blue')
+                        )
+            
+            # Save per-fencer angle visualization
+            fencer_angles_path = os.path.join(output_dir, f"{video_name}_fencer{fencer_id}_angles.png")
+            plt.savefig(fencer_angles_path)
+            plt.close()
+            visualizations[f'fencer{fencer_id}_angles'] = fencer_angles_path
+        
+        # 5. Create a summary visualization
+        plt.figure(figsize=(15, 12))
+        
+        # Pie chart (top left)
         plt.subplot(2, 2, 1)
-        filtered_counts = {k: v for k, v in technique_counts.items() if v > 0 and k != 'movement'}
+        filtered_counts = {}
+        for k, v in technique_counts.items():
+            if v > 0 and k != 'movement':
+                filtered_counts[k] = v
+        
         if filtered_counts:
             plt.pie(
                 filtered_counts.values(),
@@ -909,113 +907,96 @@ class SimplifiedFencingAnalyzer:
                     horizontalalignment='center', verticalalignment='center')
             plt.axis('off')
         
-        # Timeline snippet (top right)
+        # Hit events timeline (top right)
         plt.subplot(2, 2, 2)
-        if timeline_data:
-            frames_subset = [f for f, t, _ in timeline_data if t != 'movement'][:100]  # Focus on non-movement techniques
-            if frames_subset:
-                # Filter to get subset with actual techniques
-                subset_data = [(f, t, fid) for f, t, fid in timeline_data if t != 'movement'][:100]
-                frames, techniques, fencer_ids = zip(*subset_data)
-                
-                unique_techniques = sorted(set(techniques))
-                
-                for technique in unique_techniques:
-                    indices = [i for i, (_, tech, _) in enumerate(subset_data) if tech == technique]
-                    if indices:
-                        plt.scatter(
-                            [frames[i] for i in indices],
-                            [1 for _ in indices],
-                            c=[technique_to_color[technique] for _ in indices],
-                            label=technique,
-                            s=30
-                        )
-            else:
-                # If no specific techniques, show movement timeline but color-coded by fencer
-                frames, techniques, fencer_ids = zip(*timeline_data[:100])
-                
-                # Create a scatter plot with points colored by fencer ID
-                unique_fencers = sorted(set(fencer_ids))
-                for fencer_id in unique_fencers:
-                    indices = [i for i, (_, _, fid) in enumerate(timeline_data[:100]) if fid == fencer_id]
-                    if indices:
-                        plt.scatter(
-                            [frames[i] for i in indices],
-                            [1 for _ in indices],
-                            label=f"Fencer {fencer_id}",
-                            s=30
-                        )
-                
-                plt.yticks([])
-                plt.xlabel('Frame')
-                plt.title('Movement Timeline by Fencer (First 100 Frames)')
-                plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=len(unique_fencers), fontsize='small')
-        
-        # Frame sample (bottom left)
-        plt.subplot(2, 2, 3)
-        if processed_frames:
-            plt.imshow(cv2.cvtColor(processed_frames[0], cv2.COLOR_BGR2RGB))
-            plt.title(f"Sample Frame")
+        if hit_events:
+            # Extract data from hit events
+            frame_indices = [event['frame_idx'] for event in hit_events]
+            attack_fencer_ids = [event['attacker_id'] for event in hit_events]
+            confidence_values = [event['confidence'] for event in hit_events]
+            
+            # Create a scatter plot of hit events
+            scatter = plt.scatter(
+                frame_indices, 
+                confidence_values,
+                c=np.array(attack_fencer_ids) % 10,  # Cycle through 10 colors
+                cmap='tab10',
+                s=50,  # Point size
+                alpha=0.7
+            )
+            
+            plt.title('Hit Events')
+            plt.xlabel('Frame')
+            plt.ylabel('Confidence (%)')
+            plt.ylim(0, 100)
+        else:
+            plt.text(0.5, 0.5, 'No hit events detected', 
+                    horizontalalignment='center', verticalalignment='center')
             plt.axis('off')
         
-        # Add detection statistics as text annotation
-        if detection_stats:
-            y_pos = 0.05
-            for stat in detection_stats:
-                plt.figtext(0.5, y_pos, stat, ha='center', fontsize=10, 
-                           bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5'))
-                y_pos += 0.04
-        
-        # Technique bar chart (bottom right)
-        plt.subplot(2, 2, 4)
-        filtered_items = [(k, v) for k, v in technique_counts.items() if v > 0 and k != 'movement']
-        if filtered_items:
-            techniques, counts = zip(*sorted(filtered_items, key=lambda x: x[1], reverse=True))
-            plt.bar(techniques, counts, color=[technique_to_color[t] for t in techniques])
-            plt.xlabel('Techniques')
-            plt.ylabel('Count')
-            plt.title('Technique Frequency')
-            plt.xticks(rotation=45, fontsize='small')
-        else:
-            # If no specific techniques, show movement count by fencer
-            if fencer_technique_counts:
-                fencer_ids = sorted(fencer_technique_counts.keys())
-                movement_counts = [fencer_technique_counts[fid].get('movement', 0) for fid in fencer_ids]
-                fencer_labels = [f"Fencer {fid}" for fid in fencer_ids]
+        # Sample frames montage (bottom half)
+        plt.subplot(2, 1, 2)
+        if processed_frames:
+            # Create a montage of sample frames
+            frame_height, frame_width = processed_frames[0].shape[:2]
+            aspect_ratio = frame_width / frame_height
+            
+            # Determine grid size based on aspect ratio
+            num_frames = min(6, len(processed_frames))
+            grid_cols = min(3, num_frames)
+            grid_rows = (num_frames + grid_cols - 1) // grid_cols
+            
+            # Create subgrid for frames
+            grid = np.ones((grid_rows * frame_height, grid_cols * frame_width, 3), dtype=np.uint8) * 255
+            
+            # Fill grid with frames
+            for i in range(num_frames):
+                row = i // grid_cols
+                col = i % grid_cols
+                frame = processed_frames[i].copy()
                 
-                if any(movement_counts):
-                    plt.bar(fencer_labels, movement_counts)
-                    plt.xlabel('Fencer')
-                    plt.ylabel('Count')
-                    plt.title('Movement Count by Fencer')
-                else:
-                    plt.text(0.5, 0.5, 'No data available', 
-                            horizontalalignment='center', verticalalignment='center')
-                    plt.axis('off')
-            else:
-                movement_count = technique_counts.get('movement', 0)
-                if movement_count > 0:
-                    plt.bar(['movement'], [movement_count], color=technique_to_color['movement'])
-                    plt.xlabel('Types')
-                    plt.ylabel('Count')
-                    plt.title('Movement Count')
-                else:
-                    plt.text(0.5, 0.5, 'No data available', 
-                            horizontalalignment='center', verticalalignment='center')
-                    plt.axis('off')
+                # Add hit information if applicable
+                frame_idx = i * 15  # Since we sample every 15 frames
+                hit_in_frame = [event for event in hit_events if abs(event['frame_idx'] - frame_idx) < 5]
+                
+                if hit_in_frame:
+                    for event in hit_in_frame:
+                        text = f"Hit: {event['attacker_id']} → {event['defender_id']}"
+                        cv2.putText(frame, text, (50, 50), 
+                                  cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
+                
+                # Add frame to grid
+                y_start = row * frame_height
+                y_end = y_start + frame_height
+                x_start = col * frame_width
+                x_end = x_start + frame_width
+                
+                # Handle different frame sizes
+                h, w = frame.shape[:2]
+                if h != frame_height or w != frame_width:
+                    frame = cv2.resize(frame, (frame_width, frame_height))
+                
+                grid[y_start:y_end, x_start:x_end] = frame
+            
+            # Convert from BGR to RGB for matplotlib
+            grid_rgb = cv2.cvtColor(grid, cv2.COLOR_BGR2RGB)
+            
+            # Display the grid
+            plt.imshow(grid_rgb)
+            plt.title('Sample Frames with Pose Estimation')
+            plt.axis('off')
+        else:
+            plt.text(0.5, 0.5, 'No sample frames available', 
+                    horizontalalignment='center', verticalalignment='center')
+            plt.axis('off')
         
-        # Add subtitle with detection statistics if available
-        subtitle = f"Analysis of {len(frame_analyses)} frames"
-        if detection_stats_text:
-            subtitle += f" | {detection_stats_text}"
+        plt.tight_layout()
         
-        plt.suptitle(f"Fencing Analysis Summary: {video_name}\n{subtitle}", fontsize=16)
-        plt.tight_layout(rect=[0, 0, 1, 0.95])
-        
+        # Save summary visualization
         summary_path = os.path.join(output_dir, f"{video_name}_summary.png")
         plt.savefig(summary_path)
         plt.close()
-        vis_paths['summary'] = summary_path
+        visualizations['summary'] = summary_path
         
         # Create per-fencer summary visualizations
         for fencer_id, counts in fencer_technique_counts.items():
@@ -1023,12 +1004,10 @@ class SimplifiedFencingAnalyzer:
             
             # Calculate detection stats for this fencer
             frame_count = len([1 for analysis in frame_analyses if analysis['fencer_id'] == fencer_id])
-            frame_percent = (frame_count / len(timeline_data) * 100) if timeline_data else 0
-            detection_stat = f"Detected in {frame_count} frames ({frame_percent:.1f}%)"
             
             # Technique pie chart (top left)
             plt.subplot(2, 2, 1)
-            filtered_counts = {k: v for k, v in counts.items() if v > 0 and k != 'movement'}
+            filtered_counts = {k: v for k, v in counts.items() if v > 0 and k != 'movement' and not k.startswith('cnn_')}
             if filtered_counts:
                 plt.pie(
                     filtered_counts.values(),
@@ -1040,397 +1019,597 @@ class SimplifiedFencingAnalyzer:
                 plt.axis('equal')
                 plt.title(f'Fencer {fencer_id} Technique Distribution')
             else:
-                movement_count = counts.get('movement', 0)
-                if movement_count > 0:
-                    plt.pie([movement_count], labels=['movement'], autopct='%1.1f%%', startangle=90,
-                          colors=[technique_to_color['movement']])
-                    plt.axis('equal')
-                    plt.title(f'Fencer {fencer_id} - Only Movement Detected')
-                else:
-                    plt.text(0.5, 0.5, 'No techniques detected for this fencer', 
-                            horizontalalignment='center', verticalalignment='center')
-                    plt.axis('off')
-            
-            # Timeline snippet (top right)
-            plt.subplot(2, 2, 2)
-            fencer_timeline = [(f, t) for f, t, fid in timeline_data if fid == fencer_id]
-            if fencer_timeline:
-                frames, techniques = zip(*fencer_timeline)
-                
-                # Plot the frames on a timeline to visualize coverage
-                plt.eventplot([frames], colors=['green'], lineoffsets=[1], linelengths=[0.5])
-                
-                # Annotate with frame indices for key moments (first, last, and some in between)
-                if len(frames) > 0:
-                    plt.annotate(f"Start: {frames[0]}", xy=(frames[0], 1), 
-                                xytext=(frames[0], 1.2), fontsize=9,
-                                arrowprops=dict(arrowstyle='->'))
-                    
-                    if len(frames) > 1:
-                        plt.annotate(f"End: {frames[-1]}", xy=(frames[-1], 1), 
-                                    xytext=(frames[-1], 1.2), fontsize=9,
-                                    arrowprops=dict(arrowstyle='->'))
-                    
-                    # Add annotations for some middle frames if there are enough
-                    if len(frames) > 10:
-                        middle_idx = len(frames) // 2
-                        plt.annotate(f"Mid: {frames[middle_idx]}", xy=(frames[middle_idx], 1), 
-                                    xytext=(frames[middle_idx], 1.2), fontsize=9,
-                                    arrowprops=dict(arrowstyle='->'))
-                
-                plt.yticks([])
-                plt.xlabel('Frame')
-                plt.title(f'Fencer {fencer_id} Timeline Coverage')
-                
-                # Add a second axis with technique distribution if techniques are detected
-                unique_techniques = sorted(set(techniques))
-                non_movement_techniques = [t for t in unique_techniques if t != 'movement']
-                
-                if non_movement_techniques:
-                    # If specific techniques exist, show them color-coded
-                    ax2 = plt.twinx()
-                    ax2.set_yticks([])
-                    
-                    for technique in non_movement_techniques:
-                        indices = [i for i, (_, tech) in enumerate(fencer_timeline) if tech == technique]
-                        if indices:
-                            ax2.scatter(
-                                [frames[i] for i in indices],
-                                [1.5 for _ in indices],  # Position above the timeline
-                                c=[technique_to_color[technique] for _ in indices],
-                                label=technique,
-                                s=30
-                            )
-                
-                    ax2.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=min(3, len(non_movement_techniques)), fontsize='small')
-            else:
-                plt.text(0.5, 0.5, 'No timeline data for this fencer', 
+                plt.text(0.5, 0.5, 'No techniques detected for this fencer', 
                         horizontalalignment='center', verticalalignment='center')
                 plt.axis('off')
             
-            # Angle data (bottom left)
+            # Hit events involving this fencer (top right)
+            plt.subplot(2, 2, 2)
+            fencer_hits = [event for event in hit_events if event['attacker_id'] == fencer_id or event['defender_id'] == fencer_id]
+            
+            if fencer_hits:
+                # Create a timeline showing when this fencer was involved in hits
+                frame_indices = [event['frame_idx'] for event in fencer_hits]
+                roles = ['Attacker' if event['attacker_id'] == fencer_id else 'Defender' for event in fencer_hits]
+                confidences = [event['confidence'] for event in fencer_hits]
+                
+                # Create a scatter plot with different colors for attacker vs defender
+                for role in ['Attacker', 'Defender']:
+                    indices = [i for i, r in enumerate(roles) if r == role]
+                    if indices:
+                        plt.scatter(
+                            [frame_indices[i] for i in indices],
+                            [confidences[i] for i in indices],
+                            label=role,
+                            color='red' if role == 'Attacker' else 'blue',
+                            s=100,
+                            alpha=0.7
+                        )
+            
+                plt.title(f'Fencer {fencer_id} Hit Involvement')
+                plt.xlabel('Frame')
+                plt.ylabel('Confidence (%)')
+                plt.ylim(0, 100)
+                plt.legend()
+                plt.grid(True, alpha=0.3)
+            else:
+                plt.text(0.5, 0.5, 'No hit events for this fencer', 
+                        horizontalalignment='center', verticalalignment='center')
+                plt.axis('off')
+            
+            # Joint angles (bottom left)
             plt.subplot(2, 2, 3)
             if fencer_id in angle_data and angle_data[fencer_id]['frames']:
                 data = angle_data[fencer_id]
+                frames = data['frames']
                 
-                # Plot arm angles
-                if data['right_arm']:
-                    plt.plot(data['frames'], data['right_arm'], 'r-', label='Right Arm Angle')
+                # Plot only right arm and leg for clarity
+                plt.plot(frames, data['right_arm'], 'r-', label='Right Arm', linewidth=2)
+                plt.plot(frames, data['right_leg'], 'm-', label='Right Leg', linewidth=2)
                 
-                if data['left_arm']:
-                    plt.plot(data['frames'], data['left_arm'], 'g-', label='Left Arm Angle')
-                
-                # Add annotations about data coverage
-                if data['frames']:
-                    plt.annotate(f"Data points: {len(data['frames'])}", 
-                               xy=(0.05, 0.95), xycoords='axes fraction',
-                               fontsize=9, backgroundcolor='white')
-                
+                plt.title(f'Fencer {fencer_id} - Joint Angles')
                 plt.xlabel('Frame')
                 plt.ylabel('Angle (degrees)')
-                plt.title(f'Fencer {fencer_id} Arm Angles')
-                plt.legend(fontsize='small')
+                plt.legend()
+                plt.grid(True, alpha=0.3)
+                
+                # Add annotations for hit events
+                for event in fencer_hits:
+                    frame_idx = event['frame_idx']
+                    # Find closest frame in data
+                    if frame_idx in frames:
+                        idx = frames.index(frame_idx)
+                        angle = data['right_arm'][idx]  # Use right arm angle for annotation
+                        role = "Attacker" if event['attacker_id'] == fencer_id else "Defender"
+                        plt.annotate(
+                            f"{role}",
+                            (frame_idx, angle),
+                            xytext=(5, 5),
+                            textcoords='offset points',
+                            arrowprops=dict(arrowstyle='->', color='red' if role == 'Attacker' else 'blue')
+                        )
             else:
                 plt.text(0.5, 0.5, 'No angle data for this fencer', 
                         horizontalalignment='center', verticalalignment='center')
                 plt.axis('off')
             
-            # Technique bar chart or Frame detection chart (bottom right)
+            # CNN classifications (bottom right)
             plt.subplot(2, 2, 4)
-            filtered_items = [(k, v) for k, v in counts.items() if v > 0 and k != 'movement']
-            if filtered_items:
-                techniques, counts = zip(*sorted(filtered_items, key=lambda x: x[1], reverse=True))
-                plt.bar(techniques, counts, color=[technique_to_color[t] for t in techniques])
-                plt.xlabel('Techniques')
-                plt.ylabel('Count')
-                plt.title(f'Fencer {fencer_id} Technique Frequency')
-                plt.xticks(rotation=45, fontsize='small')
-            else:
-                # If no specific techniques, create a frame detection visualization
-                # Extract frame numbers when this fencer was detected
-                fencer_frames = [analysis['frame_idx'] for analysis in frame_analyses if analysis['fencer_id'] == fencer_id]
-                
-                if fencer_frames:
-                    # Create a timeline with markers for when the fencer was detected
-                    total_frames = timeline_data[-1][0] if timeline_data else frame_count  # Use max frame idx
-                    frame_presence = np.zeros(total_frames + 1)
-                    for f in fencer_frames:
-                        if f <= total_frames:  # Safety check
-                            frame_presence[f] = 1
-                    
-                    # Plot detection pattern
-                    plt.step(range(len(frame_presence)), frame_presence, where='mid')
-                    plt.fill_between(range(len(frame_presence)), frame_presence, step="mid", alpha=0.4)
-                    plt.xlabel('Frame')
-                    plt.ylabel('Detected')
-                    plt.title(f'Fencer {fencer_id} Detection Pattern')
-                    plt.yticks([0, 1], ['No', 'Yes'])
-                else:
-                    movement_count = counts.get('movement', 0)
-                    if movement_count > 0:
-                        plt.bar(['movement'], [movement_count], color=technique_to_color['movement'])
-                        plt.xlabel('Types')
-                        plt.ylabel('Count')
-                        plt.title('Movement Count')
-                    else:
-                        plt.text(0.5, 0.5, 'No data available', 
-                                horizontalalignment='center', verticalalignment='center')
-                        plt.axis('off')
+            cnn_counts = {k.replace('cnn_', ''): v for k, v in counts.items() if k.startswith('cnn_') and v > 0}
             
-            plt.suptitle(f"Fencer {fencer_id} Analysis Summary\n{detection_stat}", fontsize=16)
-            plt.tight_layout(rect=[0, 0, 1, 0.95])
+            if cnn_counts:
+                # Sort by count descending
+                sorted_poses = sorted(cnn_counts.items(), key=lambda x: x[1], reverse=True)
+                poses, pose_counts = zip(*sorted_poses)
+                
+                # Define colors for CNN poses
+                cnn_colors = {
+                    'neutral': 'gray',
+                    'attack': 'red',
+                    'defense': 'blue',
+                    'lunge': 'orange'
+                }
+                
+                bars = plt.bar(poses, pose_counts, color=[cnn_colors.get(p, 'gray') for p in poses])
+                
+                # Add count labels on top of bars
+                for bar in bars:
+                    height = bar.get_height()
+                    plt.text(bar.get_x() + bar.get_width()/2., height + 0.1,
+                            f'{height:.0f}',
+                            ha='center', va='bottom')
+                
+                plt.title(f'Fencer {fencer_id} CNN Classifications')
+                plt.ylabel('Count')
+                plt.xticks(rotation=45)
+            else:
+                plt.text(0.5, 0.5, 'No CNN classifications for this fencer', 
+                        horizontalalignment='center', verticalalignment='center')
+                plt.axis('off')
+            
+            plt.tight_layout()
+            
+            # Save per-fencer summary
             fencer_summary_path = os.path.join(output_dir, f"{video_name}_fencer{fencer_id}_summary.png")
             plt.savefig(fencer_summary_path)
             plt.close()
-            vis_paths[f'fencer{fencer_id}_summary'] = fencer_summary_path
+            visualizations[f'fencer{fencer_id}_summary'] = fencer_summary_path
         
-        return vis_paths
+        # Return paths to all visualizations
+        print(f"Generated visualizations:")
+        for name, path in visualizations.items():
+            print(f"  {name}: {path}")
+        
+        return visualizations
     
     def generate_report(self, results, output_path):
         """
-        Generate a simple HTML report from pose analysis results
+        Generate an HTML report from the analysis results
         
         Args:
-            results: Analysis results dictionary
-            output_path: Path to save the HTML report
+            results: Dictionary containing analysis results
+            output_path: Path where the HTML report will be saved
         """
-        # Get video name
-        video_name = os.path.splitext(os.path.basename(results['video_path']))[0]
-        output_dir = os.path.dirname(output_path)
-        
-        # Create HTML content
-        html_content = f"""
+        # Create basic HTML report
+        html = """
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Fencing Pose Analysis: {video_name}</title>
+            <title>Fencing Analysis Report</title>
             <style>
-                body {{
-                    font-family: Arial, sans-serif;
-                    line-height: 1.6;
-                    max-width: 1200px;
-                    margin: 0 auto;
-                    padding: 20px;
-                }}
-                .header {{
-                    background-color: #f5f5f5;
-                    padding: 20px;
-                    border-radius: 5px;
-                    margin-bottom: 20px;
-                }}
-                .section {{
-                    margin-bottom: 30px;
-                    border-bottom: 1px solid #ddd;
-                    padding-bottom: 20px;
-                }}
-                table {{
-                    border-collapse: collapse;
-                    width: 100%;
-                }}
-                th, td {{
-                    border: 1px solid #ddd;
-                    padding: 8px;
-                    text-align: left;
-                }}
-                th {{
-                    background-color: #f2f2f2;
-                }}
-                .visualization {{
-                    margin: 20px 0;
-                    max-width: 100%;
-                }}
-                .visualization img {{
-                    max-width: 100%;
-                    height: auto;
-                }}
-                .two-column {{
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 20px;
-                }}
-                .two-column > div {{
-                    flex: 1;
-                    min-width: 300px;
-                }}
-                .fencer-section {{
-                    background-color: #f9f9f9;
-                    border-radius: 5px;
-                    padding: 15px;
-                    margin-bottom: 20px;
-                }}
+                body { font-family: Arial, sans-serif; margin: 20px; }
+                h1, h2, h3 { color: #333; }
+                .section { margin-bottom: 30px; }
+                .fencer-section { margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; }
+                .technique-count { margin-right: 20px; }
+                img { max-width: 100%; height: auto; margin: 10px 0; }
+                table { border-collapse: collapse; width: 100%; }
+                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                th { background-color: #f2f2f2; }
+                tr:nth-child(even) { background-color: #f9f9f9; }
             </style>
         </head>
         <body>
-            <div class="header">
-                <h1>Fencing Pose Analysis Report</h1>
-                <p>Video: {results['video_path']}</p>
-                <p>Analysis Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-            </div>
-            
+            <h1>Fencing Video Analysis Report</h1>
+        """
+        
+        # Get video name
+        video_name = results.get('video_name', 'Unknown Video')
+        
+        # Add summary section
+        html += f"""
             <div class="section">
-                <h2>Summary</h2>
-                <p>This report presents a pose analysis of fencing techniques and movements.</p>
-                <p>Number of analyzed frames: {len(results['frame_analyses'])}</p>
-                
-                <div class="visualization">
-                    <h3>Analysis Summary</h3>
-                    <img src="{video_name}_summary.png" alt="Analysis Summary">
-                </div>
-            </div>
+            <h2>Analysis Summary for {video_name}</h2>
+            <p>Total frames analyzed: {len(results.get('frame_analyses', []))}</p>
+        """
+        
+        # Add technique counts if available
+        technique_counts = results.get('technique_counts', {})
+        if technique_counts:
+            html += "<h3>Overall Technique Distribution</h3><div style='display: flex; flex-wrap: wrap;'>"
+            for technique, count in sorted(technique_counts.items(), key=lambda x: x[1], reverse=True):
+                if count > 0 and technique != 'movement':
+                    html += f"<div class='technique-count'><strong>{technique}:</strong> {count}</div>"
+            html += "</div>"
+        
+        html += "</div>"
+        
+        # Add per-fencer analysis
+        fencer_technique_counts = results.get('fencer_technique_counts', {})
+        if fencer_technique_counts:
+            html += "<div class='section'><h2>Fencer Analysis</h2>"
             
-            <div class="section">
-                <h2>Technique Detection</h2>
-                <div class="two-column">
-                    <div>
-                <table>
-                    <tr>
-                        <th>Technique</th>
-                        <th>Count</th>
-                    </tr>
+            for fencer_id, counts in fencer_technique_counts.items():
+                html += f"""
+                <div class='fencer-section'>
+                    <h3>Fencer {fencer_id}</h3>
+                    <h4>Technique Distribution</h4>
+                    <div style='display: flex; flex-wrap: wrap;'>
         """
         
         # Add technique counts
-        for technique, count in sorted(results['technique_counts'].items(), key=lambda x: x[1], reverse=True):
-            if count > 0:
-                html_content += f"""
-                    <tr>
-                        <td>{technique}</td>
-                        <td>{count}</td>
-                    </tr>
-                """
-        
-        html_content += """
-                </table>
-            </div>
-                    <div>
-        """
-        
-        # Add technique distribution visualization if it exists
-        if os.path.exists(os.path.join(output_dir, f"{video_name}_pie.png")):
-                html_content += f"""
-                <div class="visualization">
-                            <h3>Technique Distribution</h3>
-                            <img src="{video_name}_pie.png" alt="Technique Distribution">
-                </div>
-                """
-        
-        html_content += """
-            </div>
-                </div>
-            </div>
+                for technique, count in sorted([(k, v) for k, v in counts.items() 
+                                              if k != 'movement' and not k.startswith('cnn_') and v > 0], 
+                                           key=lambda x: x[1], reverse=True):
+                    html += f"<div class='technique-count'><strong>{technique}:</strong> {count}</div>"
+                
+                html += "</div>"
+                
+                # Add CNN classification counts if available
+                cnn_counts = {k.replace('cnn_', ''): v for k, v in counts.items() 
+                             if k.startswith('cnn_') and v > 0}
+                if cnn_counts:
+                    html += "<h4>CNN Classification Counts</h4><div style='display: flex; flex-wrap: wrap;'>"
+                    for pose, count in sorted(cnn_counts.items(), key=lambda x: x[1], reverse=True):
+                        html += f"<div class='technique-count'><strong>{pose}:</strong> {count}</div>"
+                    html += "</div>"
+                
+                html += "</div>"
             
-            <div class="section">
-                <h2>Per-Fencer Analysis</h2>
-        """
+            html += "</div>"
         
-        # Add per-fencer sections
-        fencer_ids = sorted(results.get('fencer_technique_counts', {}).keys())
-        for fencer_id in fencer_ids:
-            html_content += f"""
-                <div class="fencer-section">
-                <h3>Fencer {fencer_id}</h3>
-                    
-                    <div class="visualization">
-                        <img src="{video_name}_fencer{fencer_id}_summary.png" alt="Fencer {fencer_id} Summary">
-            </div>
-            
-                    <h4>Technique Distribution</h4>
+        # Add hit events if available
+        hit_events = results.get('hit_events', [])
+        if hit_events:
+            html += """
+            <div class='section'>
+                <h2>Hit Events</h2>
                 <table>
                     <tr>
-                            <th>Technique</th>
-                            <th>Count</th>
+                        <th>Frame</th>
+                        <th>Attacker</th>
+                        <th>Defender</th>
+                        <th>Confidence</th>
+                    </tr>
+            """
+            
+            for event in sorted(hit_events, key=lambda x: x.get('frame_idx', 0)):
+                html += f"""
+                <tr>
+                    <td>{event.get('frame_idx', 'N/A')}</td>
+                    <td>Fencer {event.get('attacker_id', 'N/A')}</td>
+                    <td>Fencer {event.get('defender_id', 'N/A')}</td>
+                    <td>{event.get('confidence', 0):.1f}%</td>
+                </tr>
+                """
+            
+            html += "</table></div>"
+        
+        # Add pose descriptions if available
+        pose_descriptions = results.get('pose_descriptions', [])
+        if pose_descriptions:
+            html += """
+            <div class='section'>
+                <h2>Pose Descriptions</h2>
+                <table>
+                    <tr>
+                        <th>Frame</th>
+                        <th>Fencer</th>
+                        <th>Description</th>
                     </tr>
         """
         
-            # Add technique counts for this fencer
-            counts = results['fencer_technique_counts'].get(str(fencer_id), {})
-            if isinstance(counts, dict):  # Just to be safe
-                for technique, count in sorted([(k, v) for k, v in counts.items() if v > 0], 
-                                            key=lambda x: x[1], reverse=True):
-                    html_content += f"""
-                    <tr>
-                                <td>{technique}</td>
-                                <td>{count}</td>
+            for i, desc in enumerate(pose_descriptions[:100]):  # Limit to first 100 descriptions
+                html += f"""
+                <tr>
+                    <td>{desc[0]}</td>
+                    <td>Fencer {desc[1]}</td>
+                    <td>{desc[2]}</td>
                     </tr>
                 """
         
-        html_content += """
-                </table>
-                </div>
-            """
+            html += "</table></div>"
         
-        html_content += """
-            </div>
+        # Close HTML
+        html += """
         </body>
         </html>
         """
         
         # Write HTML to file
         with open(output_path, 'w') as f:
-            f.write(html_content)
+            f.write(html)
         
         print(f"Report generated at {output_path}")
 
+    def calculate_iou(self, box1, box2):
+        """
+        Calculate the Intersection over Union (IoU) between two bounding boxes
+        
+        Args:
+            box1: First box in format [x1, y1, x2, y2]
+            box2: Second box in format [x1, y1, x2, y2]
+            
+        Returns:
+            iou: IoU value
+        """
+        # Extract coordinates
+        x1_1, y1_1, x2_1, y2_1 = box1
+        x1_2, y1_2, x2_2, y2_2 = box2
+        
+        # Calculate area of each box
+        area1 = (x2_1 - x1_1) * (y2_1 - y1_1)
+        area2 = (x2_2 - x1_2) * (y2_2 - y1_2)
+        
+        # Calculate intersection
+        x1_i = max(x1_1, x1_2)
+        y1_i = max(y1_1, y1_2)
+        x2_i = min(x2_1, x2_2)
+        y2_i = min(y2_1, y2_2)
+        
+        # Check if boxes intersect
+        if x1_i >= x2_i or y1_i >= y2_i:
+            return 0.0
+        
+        intersection = (x2_i - x1_i) * (y2_i - y1_i)
+        
+        # Calculate IoU
+        union = area1 + area2 - intersection
+        
+        # Handle edge case of zero union
+        if union <= 0:
+            return 0.0
+        
+        return intersection / union
+
+    def process_video(self, video_path, output_dir, max_frames=None):
+        """
+        Process video with fencer detection and pose estimation
+        
+        Args:
+            video_path: Path to video file
+            output_dir: Output directory for processed frames
+            max_frames: Maximum number of frames to process (None for all)
+            
+        Returns:
+            frame_analyses: List of analyses for each processed frame
+            processed_frames: List of processed frames with visualizations
+        """
+        print(f"Analyzing video: {video_path}")
+        
+        # Initialize return values
+        frame_analyses = []
+        processed_frames = []
+        
+        # Process manual selection if specified
+        if hasattr(self, 'manual_fencer_ids') and self.manual_fencer_ids:
+            # Set target fencers in the enhanced detector if available
+            if self.use_enhanced_detector and hasattr(self.fencer_detector, 'set_target_fencers'):
+                self.fencer_detector.set_target_fencers(self.manual_fencer_ids)
+                
+                # Disable grid lines in visualization
+                if hasattr(self.fencer_detector, 'draw_enhanced_detections'):
+                    original_draw_method = self.fencer_detector.draw_enhanced_detections
+                    def modified_draw_method(frame, tracked_items, sword_detections=None):
+                        annotated_frame = frame.copy()
+                        
+                        # NO GRID LINES - Draw just the boxes and directly use the sword detection output
+                        
+                        # First, use the model's sword detector to directly visualize swords if available
+                        if sword_detections and len(sword_detections) > 0:
+                            # Use the optimized sword detector's drawing function directly
+                            # This will draw large, visible dots at sword tips with connecting lines
+                            annotated_frame = self.fencer_detector.sword_detector.draw_detections(annotated_frame, sword_detections)
+                        
+                        # Draw fencer detections (boxes and labels only)
+                        for item in tracked_items:
+                            # Extract information
+                            fencer_id = item.get('fencer_id', item.get('id', -1))
+                            box = item.get('box', item.get('bbox', None))
+                            pose_class = item.get('pose_class', 'neutral')
+                            
+                            if box is not None:
+                                x1, y1, x2, y2 = map(int, box)
+                                
+                                # Different color based on fencer ID for consistent visualization
+                                colors = [
+                                    (0, 255, 0),    # Green for fencer 0
+                                    (255, 0, 0),    # Blue for fencer 1
+                                    (0, 0, 255),    # Red for fencer 2
+                                    (255, 255, 0),  # Cyan for fencer 3
+                                    (255, 0, 255),  # Magenta for fencer 4
+                                    (0, 255, 255),  # Yellow for fencer 5
+                                ]
+                                
+                                color_idx = fencer_id % len(colors)
+                                color = colors[color_idx]
+                                
+                                # Make box thicker for better visibility
+                                cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 3)
+                                
+                                # Draw fencer ID and pose information - just minimal info
+                                fencer_label = f"Fencer {fencer_id}"
+                                pose_label = f"Pose: {pose_class}"
+                                
+                                # Position labels at top of box
+                                cv2.putText(annotated_frame, fencer_label, (x1+5, y1+20),
+                                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                                cv2.putText(annotated_frame, pose_label, (x1+5, y1+45),
+                                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                        
+                        return annotated_frame
+                    
+                    # Replace the draw method with our modified version
+                    self.fencer_detector.draw_enhanced_detections = modified_draw_method
+                
+        # Check if we should detect and isolate fencers first
+        if self.fencer_detector is not None:
+            print(f"Running fencer detection and pose classification...")
+            
+            # Process video with fencer detection first, then do pose analysis per detected fencer
+            # Setup video output
+            pose_analysis_path = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(video_path))[0]}_pose_analysis.mp4")
+            
+            # Initialize video capture
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                print(f"Error opening video file: {video_path}")
+                return [], []
+            
+            # Get video properties
+            frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            fps = int(cap.get(cv2.CAP_PROP_FPS))
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            
+            if max_frames:
+                total_frames = min(total_frames, max_frames)
+            
+            # Initialize video writer
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            writer = cv2.VideoWriter(pose_analysis_path, fourcc, fps, (frame_width, frame_height))
+            
+            # Storage for results
+            frame_analyses = []
+            processed_frames = []
+            
+            # Process frames
+            frame_count = 0
+            print(f"Processing video with fencer detection and pose estimation...")
+            print(f"Total frames to process: {total_frames}")
+            
+            # Store initial detections to help with tracking consistency
+            fencer_detection_counts = {fencer_id: 0 for fencer_id in self.manual_fencer_ids} if hasattr(self, 'manual_fencer_ids') else {}
+            last_known_boxes = {}  # Store last known location of each fencer
+            
+            while cap.isOpened() and frame_count < total_frames:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                
+                # Only process every 3rd frame to improve speed
+                if frame_count % 3 == 0:
+                    print(f"Processing frame {frame_count}/{total_frames}")
+                    
+                    # Detect fencers and classify pose using our enhanced detector
+                    tracked_items = self.fencer_detector.track_and_classify(frame)
+                    
+                    # Filter tracked items if manual selection is active
+                    if hasattr(self, 'manual_fencer_ids') and self.manual_fencer_ids:
+                        tracked_items = [item for item in tracked_items
+                                        if item['fencer_id'] in self.manual_fencer_ids]
+                    
+                    # Create a clean copy of the frame for visualization
+                    annotated_frame = frame.copy()
+                    
+                    # Draw enhanced detections (fencer boxes, pose labels)
+                    if self.use_enhanced_detector:
+                         # Use the enhanced drawing method (no swords)
+                         annotated_frame = self.fencer_detector.draw_enhanced_detections(annotated_frame, tracked_items)
+                    
+                    # Add frame number to the annotated frame
+                    cv2.putText(annotated_frame, f"Frame: {frame_count}", (20, 30), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+                    
+                    # Process each tracked fencer for pose estimation (using separate estimator)
+                    for item in tracked_items:
+                        fencer_id = item['fencer_id']
+                        box = item['box']
+                        pose_class = item.get('pose_class', 'neutral')
+                        
+                        x1, y1, x2, y2 = map(int, box)
+                        if fencer_id in fencer_detection_counts:
+                            fencer_detection_counts[fencer_id] += 1
+                        last_known_boxes[fencer_id] = box
+
+                        # Estimate detailed pose using PoseEstimator
+                        keypoints = self.pose_estimator.estimate_pose(frame, box)
+
+                        if keypoints is not None:
+                            # Draw detailed pose on top
+                            annotated_frame = self.pose_estimator.draw_pose(annotated_frame, keypoints, confined_to_box=box)
+                            angles = self.pose_estimator.calculate_angles(keypoints)
+                            observations = self.pose_estimator.analyze_fencing_movement(angles)
+                            base_sentence = generate_descriptive_sentence(observations)
+                            # Include CNN pose in sentence
+                            sentence = f"{base_sentence} CNN classifies as: {pose_class}"
+
+                            frame_analyses.append({
+                                'frame_idx': frame_count,
+                                'fencer_id': fencer_id,
+                                'angles': angles,
+                                'observations': observations,
+                                'sentence': sentence,
+                                'box': [float(x) for x in box],
+                                'pose_class': pose_class
+                            })
+                    
+                    # Save for visualization
+                    if frame_count % 15 == 0:  # Sample frames for visualization
+                        processed_frames.append(annotated_frame)
+                    
+                    # Write frame to output video
+                    writer.write(annotated_frame)
+                
+                frame_count += 1
+            
+            # Release resources
+            cap.release()
+            writer.release()
+            
+            print(f"Processed {len(frame_analyses)} frames with pose estimation")
+            if fencer_detection_counts:
+                print("\nFencer detection statistics:")
+                for fencer_id, count in fencer_detection_counts.items():
+                    print(f"Fencer {fencer_id}: detected in {count} frames")
+        else:
+            # Fall back to standard pose estimation
+            print(f"Fencer detector not available. Running general pose estimation...")
+            pose_analysis_path = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(video_path))[0]}_pose_analysis.mp4")
+            
+            print(f"Running pose estimation on video...")
+            frame_analyses, processed_frames = process_video_with_pose(
+                video_path, 
+                pose_analysis_path
+            )
+            
+            print(f"Processed {len(frame_analyses)} frames with pose estimation")
+        
+        # Save sample frames
+        if processed_frames:
+            print("Saving sample frames with pose estimation...")
+            plt.figure(figsize=(15, 10))
+            for i in range(min(4, len(processed_frames))):
+                idx = i * len(processed_frames) // 4
+                plt.subplot(2, 2, i+1)
+                plt.imshow(cv2.cvtColor(processed_frames[idx], cv2.COLOR_BGR2RGB))
+                plt.title(f"Frame {i*len(processed_frames)//4}")
+                plt.axis('off')
+            
+            plt.suptitle("Fencing Pose Analysis")
+            plt.tight_layout()
+            frames_path = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(video_path))[0]}_pose_frames.png")
+            plt.savefig(frames_path)
+            plt.close()
+            print(f"Saved sample frames to {frames_path}")
+        
+        return frame_analyses, processed_frames
+
+def force_dict(obj):
+    """Helper function to force an object to be a dictionary"""
+    if isinstance(obj, dict):
+        return obj
+    
+    # If it's not a dict, create a new empty one
+    print(f"Converting {type(obj)} to dict")
+    return {}
+
 def main():
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description="Simplified Fencing Pose Analysis")
-    parser.add_argument("video_path", help="Path to the fencing video")
-    parser.add_argument("--output_dir", default="results", help="Directory to save results")
-    parser.add_argument("--max_frames", type=int, default=None, help="Maximum number of frames to process")
-    parser.add_argument("--no_viz", action="store_true", help="Disable visualization outputs")
-    parser.add_argument("--manual_select", help="Optional comma-separated list of fencer IDs to manually select")
-    parser.add_argument("--first_only", action="store_true", help="Only show the first frame with detected fencers and exit")
-    parser.add_argument("--pose_model", default="models/pose_classifier.pth", help="Path to trained CNN pose classifier model")
-    parser.add_argument("--sword_model", default="models/yolov8n_blade.pt", help="Path to trained sword detector model")
-    parser.add_argument("--use_enhanced", action="store_true", help="Use enhanced detector with CNN and sword detection")
+    parser = argparse.ArgumentParser(description="Advanced Fencing Analyzer")
+    parser.add_argument("video", help="Path to video file")
+    parser.add_argument("--output_dir", help="Output directory", default=None)
+    parser.add_argument("--max_frames", type=int, help="Maximum number of frames to process", default=None)
+    parser.add_argument("--use_enhanced", action="store_true", help="Use enhanced detector with CNN pose classification")
+    parser.add_argument("--pose_model", help="Path to pose classifier model", default=None)
+    parser.add_argument("--manual_select", help="Comma-separated list of fencer IDs to manually select", default=None)
     
     args = parser.parse_args()
     
-    # Check if video exists
-    if not os.path.exists(args.video_path):
-        print(f"Error: Video file {args.video_path} not found!")
-        return
-    
-    # Initialize analyzer with our trained models
+    # Create analyzer
     analyzer = SimplifiedFencingAnalyzer(
-        pose_model_path=args.pose_model if args.use_enhanced else None,
-        sword_model_path=args.sword_model if args.use_enhanced else None,
-        use_enhanced_detector=args.use_enhanced
+        use_enhanced_detector=args.use_enhanced,
+        pose_model_path=args.pose_model
     )
     
-    # Create output directory
-    os.makedirs(args.output_dir, exist_ok=True)
-    
-    # Show first frame for analysis
-    if args.first_only:
-        annotated_frame_path = analyzer.show_first_frame_for_selection(args.video_path, args.output_dir)
-        print("\nFirst frame analysis complete!")
-        print(f"Annotated frame saved to: {annotated_frame_path}")
-        print("\nTo analyze specific fencers, run the command again with --manual_select followed by comma-separated fencer IDs")
-        print("Example: python advanced_fencing_analyzer.py video.mp4 --manual_select 0,1 --use_enhanced --pose_model models/pose_classifier.pth --sword_model models/yolov8n_blade.pt")
-        return
-    
-    # Show first frame for selection if manual select is specified
+    # Set manual selection if provided
     if args.manual_select:
-        analyzer.show_first_frame_for_selection(args.video_path, args.output_dir)
+        print(f"Manual fencer selection: {args.manual_select}")
+        try:
+            selected_ids = [int(id.strip()) for id in args.manual_select.split(',')]
+            analyzer.manual_fencer_ids = selected_ids
+            print(f"Will focus analysis on fencer IDs: {selected_ids}")
+        except ValueError:
+            print("Warning: Invalid manual selection format. Expected comma-separated integers.")
     
-    # Analyze video with pose estimation
+    # Analyze video
     results = analyzer.analyze_video(
-        video_path=args.video_path,
+        video_path=args.video,
         output_dir=args.output_dir,
-        num_frames=args.max_frames,
-        save_visualization=not args.no_viz,
-        manual_select=args.manual_select
+        max_frames=args.max_frames
     )
     
-    # Generate report
-    video_name = os.path.splitext(os.path.basename(args.video_path))[0]
-    report_path = os.path.join(args.output_dir, f"{video_name}_pose_report.html")
-    analyzer.generate_report(results, report_path)
-    
-    print("\nAnalysis complete!")
-    print(f"Results saved to {args.output_dir}")
-    print(f"Report generated at {report_path}")
+    print("Analysis complete!")
 
 if __name__ == "__main__":
     main()

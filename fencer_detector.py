@@ -215,4 +215,34 @@ class FencerDetector:
         if writer:
             writer.release()
         
-        print(f"Processed {frame_count} frames") 
+        print(f"Processed {frame_count} frames")
+
+    def detect_and_classify(self, frame):
+        """Detect and classify fencers in frame
+        
+        Args:
+            frame: Input frame
+            
+        Returns:
+            detections: List of fencer detections with poses
+            sword_detections: List of sword detections (empty for base class)
+        """
+        # Run inference
+        results = self.model(frame)[0]
+        
+        # Process detections
+        detections = []
+        for i, r in enumerate(results.boxes.data.tolist()):
+            x1, y1, x2, y2, conf, class_id = r
+            
+            detection = {
+                'box': [x1, y1, x2, y2],
+                'confidence': conf,
+                'class_id': int(class_id),
+                'pose_class': 'neutral',  # Default pose class
+                'pose_confidence': 0.0,
+                'fencer_id': i + 1  # Add fencer ID starting from 1
+            }
+            detections.append(detection)
+            
+        return detections, []  # Empty list for sword detections 
